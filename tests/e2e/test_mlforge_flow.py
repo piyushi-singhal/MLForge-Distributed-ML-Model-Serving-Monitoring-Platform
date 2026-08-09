@@ -29,8 +29,8 @@ def test_mlforge_golden_path():
     user_id = reg_response.json()["id"]
 
     # 2. Login
-    login_response = client.post(f"{BASE_URL}/auth/login", data={
-        "username": username,
+    login_response = client.post(f"{BASE_URL}/auth/login", json={
+        "email": f"{username}@example.com",
         "password": password
     })
     assert login_response.status_code == 200, f"Login failed: {login_response.text}"
