@@ -1,1 +1,1 @@
-# API Gateway Application Package
+# Initialized

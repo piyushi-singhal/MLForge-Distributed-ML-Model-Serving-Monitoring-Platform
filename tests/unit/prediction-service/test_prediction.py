@@ -39,7 +39,7 @@ class MockRedis:
         self.sets += 1
         return True
 
-import prediction_app.main as main
+import app.main as main
 mock_redis = MockRedis()
 main.redis_client = mock_redis
 

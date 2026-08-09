@@ -21,7 +21,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base, get_db
-import worker_app.worker as worker
+import app.worker as worker
 from app import models
 
 # Create in-memory SQLite database for test runs
@@ -98,8 +98,8 @@ def test_successful_training_run():
     assert event is not None
     assert event.status == "COMPLETED"
     
-    # Check binary file was saved (using test mode suffix config path)
-    artifact_path = "./storage/models/test-classifier_v1.joblib"
+    # Check binary file was saved (using event_id suffix)
+    artifact_path = f"./storage/models/test-classifier_{event_id}.joblib"
     assert os.path.exists(artifact_path)
     db.close()
 
