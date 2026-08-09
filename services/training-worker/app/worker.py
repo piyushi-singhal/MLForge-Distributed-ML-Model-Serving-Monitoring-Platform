@@ -1,7 +1,6 @@
 import os
 import time
 import json
-import logging
 import pandas as pd
 import numpy as np
 import joblib
@@ -19,8 +18,9 @@ from sklearn.metrics import accuracy_score
 from .config import settings
 from .database import SessionLocal
 from . import models
+from .logger import setup_logger, request_id_var
 
-logger = logging.getLogger("training-worker")
+logger = setup_logger("training-worker")
 
 class TransientError(Exception):
     """Raised for issues like temporary DB disconnects that are worth retrying."""
@@ -116,13 +116,14 @@ def process_training_message(message_body: str):
                 "status": "READY" # Initially READY, can be activated to ACTIVE later
             }
             url = f"{settings.MODEL_SERVICE_URL}/models/{model_id}/versions"
-            logger.info(f"Registering model version via HTTP POST to {url} payload={payload}")
+            logger.info(f"Registering model version via HTTP POST to {url} payload={payload}", extra={"event": "register_model_version"})
             
             # Use test mode check to skip HTTP call in mock unit tests
             if os.environ.get("TESTING") == "True":
                 logger.info("Skipped registration HTTP call in test environment.")
             else:
-                resp = httpx.post(url, json=payload, timeout=5.0)
+                headers = {"X-Request-ID": request_id_var.get()}
+                resp = httpx.post(url, json=payload, headers=headers, timeout=5.0)
                 if resp.status_code not in (200, 201, 409):
                     raise TransientError(f"Model Service returned unexpected code {resp.status_code}: {resp.text}")
             
@@ -130,7 +131,7 @@ def process_training_message(message_body: str):
             job.completed_at = datetime.now(timezone.utc)
             processed_event.status = "COMPLETED"
             db.commit()
-            logger.info(f"Successfully finished job {job_id} model version {version_str}")
+            logger.info(f"Successfully finished job {job_id} model version {version_str}", extra={"event": "training_completed"})
             return True
         except Exception as e:
             db.rollback()

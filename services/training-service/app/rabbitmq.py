@@ -1,10 +1,10 @@
 import pika
 import json
-import logging
 import os
 from .config import settings
+from .logger import setup_logger, request_id_var
 
-logger = logging.getLogger("training-service.rabbitmq")
+logger = setup_logger("training-service")
 
 def get_rabbitmq_connection():
     if os.environ.get("TESTING") == "True":
@@ -84,8 +84,9 @@ def publish_training_job(event_id: str, job_id: str, model_id: str, dataset_path
         body=json.dumps(message),
         properties=pika.BasicProperties(
             delivery_mode=2, # make message persistent on disk
-            content_type="application/json"
+            content_type="application/json",
+            headers={"x-request-id": request_id_var.get()}
         )
     )
     connection.close()
-    logger.info(f"Published training job {job_id} event {event_id} successfully.")
+    logger.info(f"Published training job {job_id} event {event_id} successfully.", extra={"event": "publish_job_success"})

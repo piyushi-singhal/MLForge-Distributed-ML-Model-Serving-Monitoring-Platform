@@ -2,18 +2,18 @@ import pika
 import os
 import time
 import json
-import logging
 import signal
 import sys
 from sqlalchemy.orm import Session
+
+from .logger import setup_logger, set_request_id
 
 from .config import settings
 from .database import engine, Base, SessionLocal
 from .worker import process_training_message, TransientError, PermanentError
 from . import models
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger("training-worker")
+logger = setup_logger("training-worker")
 
 # Initialize tables
 Base.metadata.create_all(bind=engine)
@@ -41,6 +41,16 @@ def get_rabbitmq_connection():
 
 def callback(ch, method, properties, body):
     msg_str = body.decode('utf-8')
+    
+    # Extract request_id from headers if present, else fallback
+    req_id = "unknown"
+    if properties.headers and "x-request-id" in properties.headers:
+        req_id = properties.headers["x-request-id"]
+    elif properties.headers and "X-Request-ID" in properties.headers:
+        req_id = properties.headers["X-Request-ID"]
+    
+    set_request_id(req_id)
+    
     db = SessionLocal()
     job_id = None
     
@@ -74,7 +84,7 @@ def callback(ch, method, properties, body):
 
         if retry_count <= 3:
             MESSAGES_RETRIED.inc()
-            logger.warning(f"Requeuing job {job_id} after transient failure. Retry {retry_count}/3. Publishing to non-blocking TTL retry queue...")
+            logger.warning(f"Requeuing job {job_id} after transient failure. Retry {retry_count}/3. Publishing to non-blocking TTL retry queue...", extra={"event": "requeue_transient"})
             # Publish to RabbitMQ delayed retry queue (with 5 seconds TTL)
             try:
                 ch.basic_publish(
@@ -89,7 +99,7 @@ def callback(ch, method, properties, body):
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
         else:
             MESSAGES_FAILED.inc()
-            logger.error(f"Retries exhausted ({retry_count}/3) for job {job_id}. Rejecting to DLQ...")
+            logger.error(f"Retries exhausted ({retry_count}/3) for job {job_id}. Rejecting to DLQ...", extra={"event": "retries_exhausted"})
             if job_id:
                 try:
                     job = db.query(models.TrainingJob).filter(models.TrainingJob.id == job_id).first()

@@ -19,9 +19,9 @@ from prometheus_client import Counter, Histogram
 from .database import engine, Base, get_db
 from .config import settings
 from . import models, schemas
+from .logger import setup_logger, set_request_id
 
-logger = logging.getLogger("prediction-service")
-logging.basicConfig(level=logging.INFO)
+logger = setup_logger("prediction-service")
 
 # Initialize tables
 Base.metadata.create_all(bind=engine)
@@ -56,21 +56,19 @@ Instrumentator().instrument(app).expose(app)
 @app.middleware("http")
 async def structured_logging_middleware(request: Request, call_next):
     start_time = time.time()
-    request_id = request.headers.get("X-Request-ID", "unknown")
+    request_id = request.headers.get("x-request-id") or request.headers.get("X-Request-ID", "unknown")
+    set_request_id(request_id)
     
     response = await call_next(request)
     
     process_time_ms = (time.time() - start_time) * 1000
-    log_data = {
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "service": "prediction-service",
-        "level": "INFO" if response.status_code < 400 else "WARNING" if response.status_code < 500 else "ERROR",
-        "request_id": request_id,
-        "event": "http_request",
-        "message": f"{request.method} {request.url.path} {response.status_code}",
-        "duration_ms": round(process_time_ms, 2)
-    }
-    logger.info(json.dumps(log_data))
+    if response.status_code < 400:
+        logger.info(f"{request.method} {request.url.path} {response.status_code}", extra={"event": "http_request", "latency_ms": round(process_time_ms, 2)})
+    elif response.status_code < 500:
+        logger.warning(f"{request.method} {request.url.path} {response.status_code}", extra={"event": "http_request", "latency_ms": round(process_time_ms, 2)})
+    else:
+        logger.error(f"{request.method} {request.url.path} {response.status_code}", extra={"event": "http_request", "latency_ms": round(process_time_ms, 2)})
+        
     return response
 
 # Initialize Redis connection client (with graceful error handling)
@@ -174,7 +172,7 @@ def get_prediction(pred_in: schemas.PredictionInput, db: Session = Depends(get_d
                 PREDICTION_REQUESTS_TOTAL.labels(model_id=pred_in.model_id, model_version=version_val).inc()
                 PREDICTION_LATENCY.labels(model_id=pred_in.model_id, model_version=version_val).observe(latency_ms / 1000.0)
                 
-                logger.info(f"Cache HIT for key={cache_key}")
+                logger.info(f"Cache HIT for key={cache_key}", extra={"event": "cache_hit"})
                 return {
                     "request_id": request_id,
                     "model_id": pred_in.model_id,
@@ -184,9 +182,9 @@ def get_prediction(pred_in: schemas.PredictionInput, db: Session = Depends(get_d
                     "latency_ms": max(1, latency_ms)
                 }
         except Exception as e:
-            logger.warning(f"Redis cache lookup error (graceful degradation): {str(e)}")
+            logger.warning(f"Redis cache lookup error (graceful degradation): {str(e)}", extra={"event": "cache_error"})
 
-    logger.info(f"Cache MISS for key={cache_key}. Performing inference...")
+    logger.info(f"Cache MISS for key={cache_key}. Performing inference...", extra={"event": "cache_miss"})
 
     # 2. Load model from storage
     try:
@@ -239,9 +237,9 @@ def get_prediction(pred_in: schemas.PredictionInput, db: Session = Depends(get_d
                 "confidence": confidence_val
             }
             redis_client.set(cache_key, json.dumps(cache_payload), ex=300) # 5 minutes TTL
-            logger.info(f"Saved prediction result to cache key={cache_key}")
+            logger.info(f"Saved prediction result to cache key={cache_key}", extra={"event": "cache_save_success"})
         except Exception as e:
-            logger.warning(f"Failed to write prediction result to Redis cache: {str(e)}")
+            logger.warning(f"Failed to write prediction result to Redis cache: {str(e)}", extra={"event": "cache_save_error"})
 
     # 5. Log prediction request to Database
     try:

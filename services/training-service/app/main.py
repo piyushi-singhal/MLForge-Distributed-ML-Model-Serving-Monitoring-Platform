@@ -4,16 +4,16 @@ from sqlalchemy import text
 import uuid
 import time
 import json
-import logging
 from datetime import datetime, timezone
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_client import Counter
 
+from .logger import setup_logger, set_request_id
+
 from .database import engine, Base, get_db
 from . import models, schemas, rabbitmq
 
-logger = logging.getLogger("training-service")
-logging.basicConfig(level=logging.INFO)
+logger = setup_logger("training-service")
 
 # Initialize tables
 Base.metadata.create_all(bind=engine)
@@ -40,21 +40,19 @@ Instrumentator().instrument(app).expose(app)
 @app.middleware("http")
 async def structured_logging_middleware(request: Request, call_next):
     start_time = time.time()
-    request_id = request.headers.get("X-Request-ID", "unknown")
+    request_id = request.headers.get("x-request-id") or request.headers.get("X-Request-ID", "unknown")
+    set_request_id(request_id)
     
     response = await call_next(request)
     
     process_time_ms = (time.time() - start_time) * 1000
-    log_data = {
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "service": "training-service",
-        "level": "INFO" if response.status_code < 400 else "WARNING" if response.status_code < 500 else "ERROR",
-        "request_id": request_id,
-        "event": "http_request",
-        "message": f"{request.method} {request.url.path} {response.status_code}",
-        "duration_ms": round(process_time_ms, 2)
-    }
-    logger.info(json.dumps(log_data))
+    if response.status_code < 400:
+        logger.info(f"{request.method} {request.url.path} {response.status_code}", extra={"event": "http_request", "latency_ms": round(process_time_ms, 2)})
+    elif response.status_code < 500:
+        logger.warning(f"{request.method} {request.url.path} {response.status_code}", extra={"event": "http_request", "latency_ms": round(process_time_ms, 2)})
+    else:
+        logger.error(f"{request.method} {request.url.path} {response.status_code}", extra={"event": "http_request", "latency_ms": round(process_time_ms, 2)})
+        
     return response
 
 @app.post("/training/jobs", response_model=schemas.TrainingJobResponse, status_code=status.HTTP_202_ACCEPTED)

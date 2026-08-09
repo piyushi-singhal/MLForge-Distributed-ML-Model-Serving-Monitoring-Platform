@@ -2,14 +2,11 @@ from fastapi import FastAPI, Request, Response, status
 from contextlib import asynccontextmanager
 import httpx
 import uuid
-import logging
-import json
+from .logger import setup_logger, set_request_id
 
 from .config import settings
 
-# Setup structured logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger("api-gateway")
+logger = setup_logger("api-gateway")
 
 async_client = None
 
@@ -37,21 +34,25 @@ Instrumentator().instrument(app).expose(app)
 @app.middleware("http")
 async def structured_logging_middleware(request: Request, call_next):
     start_time = time.time()
-    request_id = request.headers.get("X-Request-ID", "unknown")
+    # 1. Propagate / Generate correlation ID (request_id)
+    request_id = request.headers.get("x-request-id") or request.headers.get("X-Request-ID")
+    if not request_id:
+        request_id = f"req_{uuid.uuid4().hex[:12]}"
+        
+    set_request_id(request_id)
+    # Inject it into request state so routes can access it if needed
+    request.state.request_id = request_id
     
     response = await call_next(request)
     
     process_time_ms = (time.time() - start_time) * 1000
-    log_data = {
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "service": "api-gateway",
-        "level": "INFO" if response.status_code < 400 else "WARNING" if response.status_code < 500 else "ERROR",
-        "request_id": request_id,
-        "event": "http_request",
-        "message": f"{request.method} {request.url.path} {response.status_code}",
-        "duration_ms": round(process_time_ms, 2)
-    }
-    logger.info(json.dumps(log_data))
+    if response.status_code < 400:
+        logger.info(f"{request.method} {request.url.path} {response.status_code}", extra={"event": "http_request", "latency_ms": round(process_time_ms, 2)})
+    elif response.status_code < 500:
+        logger.warning(f"{request.method} {request.url.path} {response.status_code}", extra={"event": "http_request", "latency_ms": round(process_time_ms, 2)})
+    else:
+        logger.error(f"{request.method} {request.url.path} {response.status_code}", extra={"event": "http_request", "latency_ms": round(process_time_ms, 2)})
+        
     return response
 
 
@@ -60,10 +61,7 @@ async def reverse_proxy(target_url: str, request: Request) -> Response:
     if async_client is None:
         async_client = httpx.AsyncClient()
 
-    # 1. Propagate / Generate correlation ID (request_id)
-    request_id = request.headers.get("x-request-id") or request.headers.get("X-Request-ID")
-    if not request_id:
-        request_id = f"req_{uuid.uuid4().hex[:12]}"
+    request_id = getattr(request.state, "request_id", f"req_{uuid.uuid4().hex[:12]}")
         
     # Copy headers and inject correlation ID
     headers = dict(request.headers)
@@ -77,7 +75,7 @@ async def reverse_proxy(target_url: str, request: Request) -> Response:
     # Read body
     body = await request.body()
     
-    logger.info(f"Routing request_id={request_id} method={request.method} path={request.url.path} ➔ target={target_url}")
+    logger.info(f"Routing method={request.method} path={request.url.path} ➔ target={target_url}", extra={"event": "routing_downstream"})
     
     # 2. Forward request downstream
     try:
@@ -99,14 +97,15 @@ async def reverse_proxy(target_url: str, request: Request) -> Response:
         if "content-encoding" in headers_out:
             del headers_out["content-encoding"]
             
-        logger.info(f"Response request_id={request_id} status_code={resp.status_code}")
+        logger.info(f"Downstream Response status_code={resp.status_code}", extra={"event": "downstream_response"})
         return Response(
             content=resp.content,
             status_code=resp.status_code,
             headers=headers_out
         )
     except httpx.RequestError as e:
-        logger.error(f"Downstream service unavailable request_id={request_id} error={str(e)}")
+        logger.error(f"Downstream service unavailable: {str(e)}", extra={"event": "downstream_error"})
+        import json
         return Response(
             content=json.dumps({
                 "error": "SERVICE_UNAVAILABLE",
