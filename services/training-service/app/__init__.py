@@ -1,1 +1,1 @@
-# Training Service Application Package
+# Initialized

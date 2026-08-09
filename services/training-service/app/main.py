@@ -1,11 +1,19 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import uuid
+import time
+import json
+import logging
 from datetime import datetime, timezone
+from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import Counter
 
 from .database import engine, Base, get_db
 from . import models, schemas, rabbitmq
+
+logger = logging.getLogger("training-service")
+logging.basicConfig(level=logging.INFO)
 
 # Initialize tables
 Base.metadata.create_all(bind=engine)
@@ -16,22 +24,41 @@ try:
 except Exception:
     pass
 
+TRAINING_JOBS_TOTAL = Counter(
+    "training_jobs_total",
+    "Total number of training jobs submitted successfully"
+)
+
 app = FastAPI(
     title="MLForge Training Service",
     description="Asynchronous training job enqueuing service for MLForge",
     version="1.0.0"
 )
 
+Instrumentator().instrument(app).expose(app)
+
+@app.middleware("http")
+async def structured_logging_middleware(request: Request, call_next):
+    start_time = time.time()
+    request_id = request.headers.get("X-Request-ID", "unknown")
+    
+    response = await call_next(request)
+    
+    process_time_ms = (time.time() - start_time) * 1000
+    log_data = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "service": "training-service",
+        "level": "INFO" if response.status_code < 400 else "WARNING" if response.status_code < 500 else "ERROR",
+        "request_id": request_id,
+        "event": "http_request",
+        "message": f"{request.method} {request.url.path} {response.status_code}",
+        "duration_ms": round(process_time_ms, 2)
+    }
+    logger.info(json.dumps(log_data))
+    return response
+
 @app.post("/training/jobs", response_model=schemas.TrainingJobResponse, status_code=status.HTTP_202_ACCEPTED)
 def submit_training_job(job_in: schemas.TrainingJobCreate, db: Session = Depends(get_db)):
-    # Verify model exists
-    model_exists = db.query(models.Model).filter(models.Model.id == job_in.model_id).first()
-    if not model_exists:
-        # Create a stub model definition if it does not exist
-        model_exists = models.Model(id=job_in.model_id, name=f"Auto Model {job_in.model_id}")
-        db.add(model_exists)
-        db.commit()
-
     job_id = str(uuid.uuid4())
     event_id = str(uuid.uuid4())
     requested_at = datetime.now(timezone.utc).isoformat()
@@ -68,6 +95,7 @@ def submit_training_job(job_in: schemas.TrainingJobCreate, db: Session = Depends
             detail=f"Temporary message broker connection failure: {str(e)}"
         )
         
+    TRAINING_JOBS_TOTAL.inc()
     db.refresh(db_job)
     return db_job
 

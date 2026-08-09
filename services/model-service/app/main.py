@@ -1,7 +1,14 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import list
+from typing import List
+import time
+import json
+import logging
+from prometheus_fastapi_instrumentator import Instrumentator
+
+logger = logging.getLogger("model-service")
+logging.basicConfig(level=logging.INFO)
 
 from .database import engine, Base, get_db
 from . import models, schemas
@@ -14,6 +21,29 @@ app = FastAPI(
     description="Model Registry and lifecycle management service for MLForge",
     version="1.0.0"
 )
+
+Instrumentator().instrument(app).expose(app)
+
+@app.middleware("http")
+async def structured_logging_middleware(request: Request, call_next):
+    start_time = time.time()
+    request_id = request.headers.get("X-Request-ID", "unknown")
+    
+    response = await call_next(request)
+    
+    process_time_ms = (time.time() - start_time) * 1000
+    log_data = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "service": "model-service",
+        "level": "INFO" if response.status_code < 400 else "WARNING" if response.status_code < 500 else "ERROR",
+        "request_id": request_id,
+        "event": "http_request",
+        "message": f"{request.method} {request.url.path} {response.status_code}",
+        "duration_ms": round(process_time_ms, 2)
+    }
+    logger.info(json.dumps(log_data))
+    return response
+
 @app.post("/models", response_model=schemas.ModelResponse, status_code=status.HTTP_201_CREATED)
 def create_model(model_in: schemas.ModelCreate, db: Session = Depends(get_db)):
     existing = db.query(models.Model).filter(models.Model.id == model_in.id).first()
@@ -52,7 +82,7 @@ def get_active_version(model_id: str, db: Session = Depends(get_db)):
         )
     return version
 
-@app.get("/models", response_model=list[schemas.ModelResponse])
+@app.get("/models", response_model=List[schemas.ModelResponse])
 def list_models(db: Session = Depends(get_db)):
     return db.query(models.Model).all()
 
@@ -108,7 +138,7 @@ def create_model_version(model_id: str, version_in: schemas.ModelVersionCreate, 
     db.refresh(db_version)
     return db_version
 
-@app.get("/models/{model_id}/versions", response_model=list[schemas.ModelVersionResponse])
+@app.get("/models/{model_id}/versions", response_model=List[schemas.ModelVersionResponse])
 def list_model_versions(model_id: str, db: Session = Depends(get_db)):
     # Verify model exists
     model = db.query(models.Model).filter(models.Model.id == model_id).first()

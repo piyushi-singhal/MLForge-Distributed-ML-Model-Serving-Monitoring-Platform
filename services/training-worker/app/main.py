@@ -85,9 +85,8 @@ def callback(ch, method, properties, body):
                 )
                 ch.basic_ack(delivery_tag=method.delivery_tag)
             except Exception as pe:
-                logger.error(f"Failed to publish to retry queue, falling back to basic requeue: {str(pe)}")
-                time.sleep(2)
-                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+                logger.error(f"Failed to publish to retry queue, routing to DLQ: {str(pe)}")
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
         else:
             MESSAGES_FAILED.inc()
             logger.error(f"Retries exhausted ({retry_count}/3) for job {job_id}. Rejecting to DLQ...")

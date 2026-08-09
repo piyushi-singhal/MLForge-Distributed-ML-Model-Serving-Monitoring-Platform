@@ -385,3 +385,22 @@
 * **What was NOT changed**: Application source code was not modified.
 
 -------------------------------------------------------------------------------------------
+
+## Phase 20: Source Tree & Test Suite Restructuring
+
+### Step 66: Canonical Source Trees
+* **What was changed/created**: Consolidated all microservices to use a unified `app/` structure. Deleted duplicated and legacy `auth_app`, `model_app`, `training_app`, `prediction_app`, and `worker_app` folders. Updated Dockerfiles to run `app.main`.
+* **Why this step was taken**: To adhere to professional repository standards and clean up technical debt from rapid iterations.
+* **What was NOT changed**: The logic inside the services themselves was unmodified.
+
+### Step 67: Reproducible Test Suites
+* **What was changed/created**: Moved all distributed `tests/` folders from individual services into a centralized `tests/unit/` root directory. Injected a `sys.path` modification at the top of each test file to dynamically load the `app` module and clear pytest caching issues. Updated `ci.yml`.
+* **Why this step was taken**: To guarantee that a simple `pytest tests/unit/` command runs perfectly from the root directory without complex PYTHONPATH setup or import conflicts.
+* **What was NOT changed**: The core assertions in the test files were not modified.
+
+### Step 68: Worker Retry Optimizations
+* **What was changed/created**: Removed a blocking `time.sleep(2)` fallback in the `training-worker` exception handler.
+* **Why this step was taken**: To ensure the distributed worker purely uses event-driven asynchronous queues (Dead Letter / TTL delayed queues) and never idles/sleeps synchronously.
+* **What was NOT changed**: The initial connection retry logic on boot was preserved.
+
+-------------------------------------------------------------------------------------------

@@ -41,7 +41,7 @@ jobs:
     - name: Run Unit Tests
       run: |
         export TESTING=True
-        pytest services/*/tests/ -v -m "not integration"
+        pytest tests/unit/ -v
 
   integration-test:
     needs: unit-test
@@ -60,7 +60,7 @@ jobs:
     - name: Run Integration Tests
       run: |
         export TESTING=True
-        pytest services/*/tests/ -v -m "integration" || echo "No explicit integration tests found, moving on"
+        pytest tests/integration/ -v || echo "No explicit integration tests found, moving on"
 
   e2e-test:
     needs: integration-test
