@@ -21,7 +21,7 @@ import json
 
 os.environ["TESTING"] = "True"
 
-# Mock Redis before importing prediction_app.main
+# Mock Redis before importing app.main
 class MockRedis:
     def __init__(self):
         self.store = {}
