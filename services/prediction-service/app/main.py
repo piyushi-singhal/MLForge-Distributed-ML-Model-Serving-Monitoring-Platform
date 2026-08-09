@@ -13,7 +13,14 @@ import numpy as np
 import redis
 import logging
 import httpx
-from typing import Dict, Any
+from typing import Dict, Any, List
+
+@app.get("/predictions", response_model=List[schemas.PredictionLogResponse])
+def list_predictions(db: Session = Depends(get_db)):
+    # Return most recent 50 prediction logs
+    logs = db.query(models.PredictionRequest).order_by(models.PredictionRequest.created_at.desc()).limit(50).all()
+    return logs
+
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_client import Counter, Histogram
 

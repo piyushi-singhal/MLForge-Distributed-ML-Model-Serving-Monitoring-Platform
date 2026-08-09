@@ -6,6 +6,7 @@ import uuid
 import time
 import json
 from datetime import datetime, timezone
+from typing import List
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_client import Counter
 
@@ -105,6 +106,12 @@ def submit_training_job(job_in: schemas.TrainingJobCreate, db: Session = Depends
     TRAINING_JOBS_TOTAL.inc()
     db.refresh(db_job)
     return db_job
+
+@app.get("/training/jobs", response_model=List[schemas.TrainingJobResponse])
+def list_training_jobs(db: Session = Depends(get_db)):
+    # Returns the 50 most recent training jobs
+    jobs = db.query(models.TrainingJob).order_by(models.TrainingJob.created_at.desc()).limit(50).all()
+    return jobs
 
 @app.get("/training/jobs/{job_id}", response_model=schemas.TrainingJobResponse)
 def get_training_job(job_id: str, db: Session = Depends(get_db)):
