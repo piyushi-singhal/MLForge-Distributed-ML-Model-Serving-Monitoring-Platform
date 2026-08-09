@@ -1,11 +1,18 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import uuid
+import time
+import json
+import logging
 from datetime import datetime, timezone
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from .database import engine, Base, get_db
 from . import models, schemas, rabbitmq
+
+logger = logging.getLogger("training-service")
+logging.basicConfig(level=logging.INFO)
 
 # Initialize tables
 Base.metadata.create_all(bind=engine)
@@ -21,6 +28,28 @@ app = FastAPI(
     description="Asynchronous training job enqueuing service for MLForge",
     version="1.0.0"
 )
+
+Instrumentator().instrument(app).expose(app)
+
+@app.middleware("http")
+async def structured_logging_middleware(request: Request, call_next):
+    start_time = time.time()
+    request_id = request.headers.get("X-Request-ID", "unknown")
+    
+    response = await call_next(request)
+    
+    process_time_ms = (time.time() - start_time) * 1000
+    log_data = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "service": "training-service",
+        "level": "INFO" if response.status_code < 400 else "WARNING" if response.status_code < 500 else "ERROR",
+        "request_id": request_id,
+        "event": "http_request",
+        "message": f"{request.method} {request.url.path} {response.status_code}",
+        "duration_ms": round(process_time_ms, 2)
+    }
+    logger.info(json.dumps(log_data))
+    return response
 
 @app.post("/training/jobs", response_model=schemas.TrainingJobResponse, status_code=status.HTTP_202_ACCEPTED)
 def submit_training_job(job_in: schemas.TrainingJobCreate, db: Session = Depends(get_db)):

@@ -3,3 +3,4 @@ uvicorn>=0.22.0
 pydantic-settings>=2.0.0
 httpx>=0.24.1
 pytest>=7.3.1
+prometheus-fastapi-instrumentator

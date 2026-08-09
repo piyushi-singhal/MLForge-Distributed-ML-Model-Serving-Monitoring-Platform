@@ -22,12 +22,38 @@ async def lifespan(app: FastAPI):
     # Shutdown: Close client
     await async_client.aclose()
 
+from prometheus_fastapi_instrumentator import Instrumentator
+import time
+
 app = FastAPI(
     title="MLForge API Gateway",
     description="Unified API entry point and reverse proxy for MLForge microservices",
     version="1.0.0",
     lifespan=lifespan
 )
+
+Instrumentator().instrument(app).expose(app)
+
+@app.middleware("http")
+async def structured_logging_middleware(request: Request, call_next):
+    start_time = time.time()
+    request_id = request.headers.get("X-Request-ID", "unknown")
+    
+    response = await call_next(request)
+    
+    process_time_ms = (time.time() - start_time) * 1000
+    log_data = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "service": "api-gateway",
+        "level": "INFO" if response.status_code < 400 else "WARNING" if response.status_code < 500 else "ERROR",
+        "request_id": request_id,
+        "event": "http_request",
+        "message": f"{request.method} {request.url.path} {response.status_code}",
+        "duration_ms": round(process_time_ms, 2)
+    }
+    logger.info(json.dumps(log_data))
+    return response
+
 
 async def reverse_proxy(target_url: str, request: Request) -> Response:
     global async_client

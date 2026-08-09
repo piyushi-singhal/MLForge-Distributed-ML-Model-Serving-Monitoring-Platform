@@ -54,6 +54,7 @@ def callback(ch, method, properties, body):
 
         # Process the message
         process_training_message(msg_str)
+        MESSAGES_PROCESSED.inc()
         ch.basic_ack(delivery_tag=method.delivery_tag)
         
     except TransientError as te:
@@ -72,6 +73,7 @@ def callback(ch, method, properties, body):
                 db.rollback()
 
         if retry_count <= 3:
+            MESSAGES_RETRIED.inc()
             logger.warning(f"Requeuing job {job_id} after transient failure. Retry {retry_count}/3. Publishing to non-blocking TTL retry queue...")
             # Publish to RabbitMQ delayed retry queue (with 5 seconds TTL)
             try:
@@ -87,6 +89,7 @@ def callback(ch, method, properties, body):
                 time.sleep(2)
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
         else:
+            MESSAGES_FAILED.inc()
             logger.error(f"Retries exhausted ({retry_count}/3) for job {job_id}. Rejecting to DLQ...")
             if job_id:
                 try:
@@ -117,10 +120,21 @@ def callback(ch, method, properties, body):
     finally:
         db.close()
 
+from prometheus_client import start_http_server, Counter
+
+# Define custom metrics
+MESSAGES_PROCESSED = Counter('training_messages_processed_total', 'Total messages processed')
+MESSAGES_FAILED = Counter('training_messages_failed_total', 'Total messages failed permanently')
+MESSAGES_RETRIED = Counter('training_messages_retried_total', 'Total messages retried due to transient errors')
+
 def main():
     if os.environ.get("TESTING") == "True":
         logger.info("Worker run skipped in testing environment.")
         return
+        
+    # Start Prometheus metrics server
+    logger.info("Starting Prometheus metrics server on port 8000")
+    start_http_server(8000)
         
     logger.info("Starting Training Worker...")
     

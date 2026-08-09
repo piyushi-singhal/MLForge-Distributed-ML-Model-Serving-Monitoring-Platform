@@ -204,10 +204,13 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: mlforge-grafana
-    volumes:
-      - grafana_data:/var/lib/grafana
     ports:
       - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
     networks:
       - mlforge-network
 

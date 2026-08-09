@@ -1,7 +1,14 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import jwt
+import time
+import json
+import logging
+from prometheus_fastapi_instrumentator import Instrumentator
+
+logger = logging.getLogger("auth-service")
+logging.basicConfig(level=logging.INFO)
 
 from .database import engine, Base, get_db
 from .config import settings
@@ -15,6 +22,28 @@ app = FastAPI(
     description="Authentication and identity validation microservice for MLForge",
     version="1.0.0"
 )
+
+Instrumentator().instrument(app).expose(app)
+
+@app.middleware("http")
+async def structured_logging_middleware(request: Request, call_next):
+    start_time = time.time()
+    request_id = request.headers.get("X-Request-ID", "unknown")
+    
+    response = await call_next(request)
+    
+    process_time_ms = (time.time() - start_time) * 1000
+    log_data = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "service": "auth-service",
+        "level": "INFO" if response.status_code < 400 else "WARNING" if response.status_code < 500 else "ERROR",
+        "request_id": request_id,
+        "event": "http_request",
+        "message": f"{request.method} {request.url.path} {response.status_code}",
+        "duration_ms": round(process_time_ms, 2)
+    }
+    logger.info(json.dumps(log_data))
+    return response
 
 # Authentication Bearer scheme
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
