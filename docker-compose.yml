@@ -90,7 +90,7 @@ services:
     container_name: mlforge-auth-service
     environment:
       - POSTGRES_HOST=postgres
-      - POSTGRES_DB=${POSTGRES_DB:-mlforge}
+      - POSTGRES_DB=auth_db
       - POSTGRES_USER=${POSTGRES_USER:-mlforge}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mlforge_dev_pwd}
       - JWT_SECRET=${JWT_SECRET}
@@ -107,7 +107,7 @@ services:
     container_name: mlforge-model-service
     environment:
       - POSTGRES_HOST=postgres
-      - POSTGRES_DB=${POSTGRES_DB:-mlforge}
+      - POSTGRES_DB=model_db
       - POSTGRES_USER=${POSTGRES_USER:-mlforge}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mlforge_dev_pwd}
     depends_on:
@@ -123,6 +123,9 @@ services:
     container_name: mlforge-training-service
     environment:
       - POSTGRES_HOST=postgres
+      - POSTGRES_DB=training_db
+      - POSTGRES_USER=${POSTGRES_USER:-mlforge}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mlforge_dev_pwd}
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_USER=${RABBITMQ_USER:-guest}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
@@ -141,11 +144,15 @@ services:
     container_name: mlforge-training-worker
     environment:
       - POSTGRES_HOST=postgres
+      - POSTGRES_DB=training_db
+      - POSTGRES_USER=${POSTGRES_USER:-mlforge}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mlforge_dev_pwd}
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_USER=${RABBITMQ_USER:-guest}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+      - MODEL_SERVICE_URL=http://model-service:8000
     volumes:
-      - ./storage/models:/data/models
+      - ./storage/models:/app/storage/models
     depends_on:
       postgres:
         condition: service_healthy
@@ -158,12 +165,16 @@ services:
     build:
       context: ./services/prediction-service
       dockerfile: Dockerfile
+    container_name: mlforge-prediction-service
     environment:
       - POSTGRES_HOST=postgres
+      - POSTGRES_DB=prediction_db
+      - POSTGRES_USER=${POSTGRES_USER:-mlforge}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mlforge_dev_pwd}
       - REDIS_HOST=redis
       - MODEL_SERVICE_URL=http://model-service:8000
     volumes:
-      - ./storage/models:/data/models
+      - ./storage/models:/app/storage/models
     depends_on:
       postgres:
         condition: service_healthy
@@ -181,7 +192,7 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - prediction-service
+      - api-gateway
     networks:
       - mlforge-network
 

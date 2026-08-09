@@ -14,26 +14,14 @@ app = FastAPI(
     description="Model Registry and lifecycle management service for MLForge",
     version="1.0.0"
 )
-
 @app.post("/models", response_model=schemas.ModelResponse, status_code=status.HTTP_201_CREATED)
 def create_model(model_in: schemas.ModelCreate, db: Session = Depends(get_db)):
-    # Check if model ID already exists
     existing = db.query(models.Model).filter(models.Model.id == model_in.id).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Model with id '{model_in.id}' already exists"
         )
-    
-    # If created_by is provided, make sure user exists (only if running with actual users table populated)
-    if model_in.created_by:
-        user_exists = db.query(models.User).filter(models.User.id == model_in.created_by).first()
-        if not user_exists:
-            # For simplicity in stub runs, we can create a dummy user
-            dummy_user = models.User(id=model_in.created_by, email=f"user_{model_in.created_by}@example.com")
-            db.add(dummy_user)
-            db.commit()
-
     db_model = models.Model(
         id=model_in.id,
         name=model_in.name,
@@ -44,6 +32,25 @@ def create_model(model_in: schemas.ModelCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_model)
     return db_model
+
+@app.get("/models/{model_id}/active", response_model=schemas.ModelVersionResponse)
+def get_active_version(model_id: str, db: Session = Depends(get_db)):
+    model = db.query(models.Model).filter(models.Model.id == model_id).first()
+    if not model:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Model not found"
+        )
+    version = db.query(models.ModelVersion).filter(
+        models.ModelVersion.model_id == model_id,
+        models.ModelVersion.status == "ACTIVE"
+    ).first()
+    if not version:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No active version found for model '{model_id}'"
+        )
+    return version
 
 @app.get("/models", response_model=list[schemas.ModelResponse])
 def list_models(db: Session = Depends(get_db)):

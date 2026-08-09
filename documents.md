@@ -199,7 +199,91 @@
 * **What was NOT changed**: Service endpoints remain unchanged.
 
 -------------------------------------------------------------------------------------------
-## Phase 9: Redis Caching (Next Phase)
+## Phase 9: Redis Caching
+
+### Step 36: Modifying Prediction Requirements
+* **What was changed/created**: Added `redis` dependency in `services/prediction-service/requirements.txt`.
+* **Why this step was taken**: To enable importing and using the redis-py client within the Prediction Service environment.
+* **What was NOT changed**: Database models and schema scripts were not modified.
+
+### Step 37: Integrating Redis Caching (`main.py`)
+* **What was changed/created**: Modified `services/prediction-service/app/main.py` to calculate sha256 input hashes, query Redis on incoming predictions (for Cache HITs), and write prediction outputs back to Redis with a 5 minutes (300s) TTL on Cache MISS.
+* **Why this step was taken**: To satisfy Section 15 of the specification, implementing high-performance prediction caching while maintaining exception-safe graceful degradation if Redis is down.
+* **What was NOT changed**: Database session helpers and database logs were not modified.
+
+### Step 38: Updating Caching Verification Test cases
+* **What was changed/created**: Rewrote `services/prediction-service/tests/test_prediction.py` to patch `main.redis_client` with an isolated mock client verifying cache hits, sets, and model fallback logic.
+* **Why this step was taken**: To programmatically test cache hit/miss behavior and confirm prediction latencies bypass inference on repeated calls.
+* **What was NOT changed**: Global models and schema scripts were not modified.
+
+-------------------------------------------------------------------------------------------
+## Phase 10: API Gateway
+
+### Step 39: Designing API Gateway Configurations
+* **What was changed/created**: Created `requirements.txt`, `app/config.py`, and `app/__init__.py` under `services/api-gateway/`.
+* **Why this step was taken**: To initialize the project package and configure routes pointing to Auth, Model, Training, and Prediction microservices.
+* **What was NOT changed**: Core configurations of downstream services were not modified.
+
+### Step 40: Implementing API Gateway Reverse Proxy (`main.py`)
+* **What was changed/created**: Created `services/api-gateway/app/main.py` implementing a wildcard reverse proxy forwarding requests to respective service ports. It extracts `X-Request-ID` headers (generating them if missing) and injects them into downstream request headers.
+* **Why this step was taken**: To provide a unified public entry point and propagate correlation IDs for distributed debugging as required by Section 5 and 20 of the specification.
+* **What was NOT changed**: Downstream service routers and databases were not modified.
+
+### Step 41: Creating API Gateway Test Suite
+* **What was changed/created**: Created `services/api-gateway/tests/test_gateway.py` with patched `httpx.AsyncClient` test mocks.
+* **Why this step was taken**: To test route proxy mappings, request ID generations, and HTTP 503 Service Unavailable error handlers in isolation.
+* **What was NOT changed**: The main API Gateway source code was not modified.
+
+### Step 42: Fixing Empty Auth Service Files
+* **What was changed/created**: Populated `services/auth-service/app/config.py`, `services/auth-service/app/database.py`, and `services/auth-service/app/models.py`.
+* **Why this step was taken**: To restore critical module parameters, SQLAlchemy connection engines, base database model mappings, and user schemas that were found empty, resolving local test execution import errors.
+* **What was NOT changed**: The test suite logic and application routers remain unchanged.
+
+-------------------------------------------------------------------------------------------
+## Phase 11: Dockerize EVERYTHING
+
+### Step 43: Creating Service Dockerfiles
+* **What was changed/created**: Created `Dockerfile` for `auth-service`, `model-service`, `training-service`, `training-worker`, `prediction-service`, and `api-gateway`.
+* **Why this step was taken**: To satisfy Section 24 of the engineering specification, providing isolated container builds for every service in the MLForge cluster.
+* **What was NOT changed**: Configuration settings and test files were not modified.
+
+### Step 44: Setting up Nginx Load Balancer and Gateway Proxies
+* **What was changed/created**: Created `infrastructure/nginx/Dockerfile` and `infrastructure/nginx/nginx.conf`.
+* **Why this step was taken**: To expose a public Nginx endpoint on port 80 routing incoming `/api/*` requests directly to the API Gateway.
+* **What was NOT changed**: Core gateway router endpoints were not modified.
+
+### Step 45: Setting up Prometheus Observability Config
+* **What was changed/created**: Created `infrastructure/prometheus/prometheus.yml`.
+* **Why this step was taken**: To configure metrics scraping targets for all microservice nodes in the Docker network.
+* **What was NOT changed**: Core microservices routers and databases were not modified.
+
+-------------------------------------------------------------------------------------------
+## Phase 12: Database Decoupling
+
+### Step 46: Decoupling Database Entities (`init.sql`)
+* **What was changed/created**: Modified `infrastructure/postgres/init.sql` to initialize separate databases (`auth_db`, `model_db`, `training_db`, `prediction_db`) using `\c` database switches. Removed cross-database Foreign Key constraints.
+* **Why this step was taken**: To enforce independent data stores at the database level as required by the microservices specification, eliminating database-level coupling.
+* **What was NOT changed**: The main PostgreSQL container configuration remains unchanged.
+
+### Step 47: Refactoring Model Service DB Models (`models.py`, `schemas.py`, and `main.py`)
+* **What was changed/created**: Removed `User` db table and FK mapping from Model Service `models.py`. Modified `schemas.py` to accept string `created_by` values. Added `/models/{model_id}/active` endpoint in `main.py` returning the active version.
+* **Why this step was taken**: To decouple the Model Registry database store from user authentication tables, moving identity verification to token decoding.
+* **What was NOT changed**: Version creation routes were not modified.
+
+### Step 48: Refactoring Training Service and Worker
+* **What was changed/created**: Removed `Model` and `ModelVersion` tables and constraints from Training DB `models.py`. Refactored Training Worker `worker.py` to register versions via HTTP POST calls (`POST /models/{model_id}/versions`) to Model Service rather than direct DB inserts.
+* **Why this step was taken**: To eliminate Training database schema coupling to Model Registry tables, routing version updates through official APIs.
+* **What was NOT changed**: Asynchronous RabbitMQ consumer loops were not modified.
+
+### Step 49: Refactoring Prediction Service Caching and Version Lookups
+* **What was changed/created**: Removed `Model` and `ModelVersion` tables from Prediction DB `models.py`. Refactored Prediction Service `main.py` to resolve target model versions by hitting Model Service API endpoints (`GET /models/{model_id}/active` or `/versions`) via `httpx` instead of direct DB queries.
+* **Why this step was taken**: To decouple the Prediction Service database store from the Model Registry DB.
+* **What was NOT changed**: Redis caching logic and in-memory model caches were not modified.
+
+-------------------------------------------------------------------------------------------
+## Phase 13: Local Deployment Verification (Complete!)
+
+
 
 
 

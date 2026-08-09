@@ -2,18 +2,13 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, JSON
 from sqlalchemy.sql import func
 from .database import Base
 
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-
 class Model(Base):
     __tablename__ = "models"
 
     id = Column(String(255), primary_key=True)  # string identifier like 'equipment-failure'
     name = Column(String(255), nullable=False)
     description = Column(Text)
-    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    created_by = Column(String(255))  # string email or identifier from auth token, no FK
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 class ModelVersion(Base):

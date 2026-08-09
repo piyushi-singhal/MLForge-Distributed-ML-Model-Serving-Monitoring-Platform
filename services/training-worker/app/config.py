@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     RABBITMQ_PASSWORD: str = "guest"
     
     MODEL_STORAGE_DIR: str = "./storage/models"
+    MODEL_SERVICE_URL: str = "http://localhost:8002"
 
     @property
     def database_url(self) -> str:

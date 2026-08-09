@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
 
     MODEL_STORAGE_DIR: str = "./storage/models"
+    MODEL_SERVICE_URL: str = "http://localhost:8002"
 
     @property
     def database_url(self) -> str:

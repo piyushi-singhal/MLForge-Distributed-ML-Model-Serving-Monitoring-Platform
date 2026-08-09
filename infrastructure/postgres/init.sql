@@ -1,4 +1,14 @@
--- Create Users Table
+-- Create Databases
+CREATE DATABASE auth_db;
+CREATE DATABASE model_db;
+CREATE DATABASE training_db;
+CREATE DATABASE prediction_db;
+
+-- ---------------------------------------------------------
+-- Initialize Auth DB
+-- ---------------------------------------------------------
+\c auth_db;
+
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -7,16 +17,19 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
--- Create Models Table
+-- ---------------------------------------------------------
+-- Initialize Model DB
+-- ---------------------------------------------------------
+\c model_db;
+
 CREATE TABLE IF NOT EXISTS models (
     id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    created_by VARCHAR(255), -- email or string ID from token
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
--- Create Model Versions Table
 CREATE TABLE IF NOT EXISTS model_versions (
     id SERIAL PRIMARY KEY,
     model_id VARCHAR(255) NOT NULL REFERENCES models(id) ON DELETE CASCADE,
@@ -29,10 +42,14 @@ CREATE TABLE IF NOT EXISTS model_versions (
     UNIQUE (model_id, version)
 );
 
--- Create Training Jobs Table
+-- ---------------------------------------------------------
+-- Initialize Training DB
+-- ---------------------------------------------------------
+\c training_db;
+
 CREATE TABLE IF NOT EXISTS training_jobs (
     id UUID PRIMARY KEY,
-    model_id VARCHAR(255) NOT NULL REFERENCES models(id) ON DELETE CASCADE,
+    model_id VARCHAR(255) NOT NULL, -- string identifier, no DB FK constraint
     status VARCHAR(50) NOT NULL,
     algorithm VARCHAR(100) NOT NULL,
     retry_count INT DEFAULT 0 NOT NULL,
@@ -42,10 +59,23 @@ CREATE TABLE IF NOT EXISTS training_jobs (
     completed_at TIMESTAMP WITH TIME ZONE
 );
 
--- Create Prediction Requests Table
+CREATE TABLE IF NOT EXISTS processed_events (
+    event_id UUID PRIMARY KEY,
+    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    status VARCHAR(50) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_training_jobs_status ON training_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_training_jobs_created_at ON training_jobs(created_at);
+
+-- ---------------------------------------------------------
+-- Initialize Prediction DB
+-- ---------------------------------------------------------
+\c prediction_db;
+
 CREATE TABLE IF NOT EXISTS prediction_requests (
     id UUID PRIMARY KEY,
-    model_id VARCHAR(255) NOT NULL REFERENCES models(id) ON DELETE CASCADE,
+    model_id VARCHAR(255) NOT NULL, -- string identifier, no DB FK constraint
     model_version VARCHAR(50) NOT NULL,
     input_hash VARCHAR(64) NOT NULL,
     prediction JSONB NOT NULL,
@@ -54,15 +84,5 @@ CREATE TABLE IF NOT EXISTS prediction_requests (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
--- Create Processed Events Table (for Idempotency)
-CREATE TABLE IF NOT EXISTS processed_events (
-    event_id UUID PRIMARY KEY,
-    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    status VARCHAR(50) NOT NULL
-);
-
--- --- INDEXES (AS SPECIFIED IN SECTION 17) ---
-CREATE INDEX IF NOT EXISTS idx_training_jobs_status ON training_jobs(status);
-CREATE INDEX IF NOT EXISTS idx_training_jobs_created_at ON training_jobs(created_at);
 CREATE INDEX IF NOT EXISTS idx_prediction_requests_model_id ON prediction_requests(model_id);
 CREATE INDEX IF NOT EXISTS idx_prediction_requests_created_at ON prediction_requests(created_at);

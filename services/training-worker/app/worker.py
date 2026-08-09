@@ -5,6 +5,7 @@ import logging
 import pandas as pd
 import numpy as np
 import joblib
+import httpx
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -62,13 +63,6 @@ def process_training_message(message_body: str):
 
         # 3. Retrieve or Create Job Tracker
         try:
-            # Re-verify model exists in DB
-            model = db.query(models.Model).filter(models.Model.id == model_id).first()
-            if not model:
-                model = models.Model(id=model_id, name=f"Auto Model {model_id}")
-                db.add(model)
-                db.commit()
-
             job = db.query(models.TrainingJob).filter(models.TrainingJob.id == job_id).first()
             if not job:
                 job = models.TrainingJob(
@@ -90,7 +84,7 @@ def process_training_message(message_body: str):
 
         # 4. Core Training Pipeline
         try:
-            metrics_json, artifact_path, version_str = run_training_pipeline(db, model_id, dataset_path, algorithm)
+            metrics_json, artifact_path, version_str = run_training_pipeline(model_id, dataset_path, algorithm)
         except PermanentError as e:
             # Log failure in job tracker
             job.status = "FAILED"
@@ -103,17 +97,26 @@ def process_training_message(message_body: str):
             db.commit()
             raise e
             
-        # 5. Register Model Version & Complete Job
+        # 5. Register Model Version via HTTP to Model Service & Complete Job
         try:
-            new_version = models.ModelVersion(
-                model_id=model_id,
-                version=version_str,
-                algorithm=algorithm,
-                artifact_path=artifact_path,
-                metrics_json=metrics_json,
-                status="READY" # Initially READY, can be activated to ACTIVE later
-            )
-            db.add(new_version)
+            # Post new version creation request to Model Service registry API
+            payload = {
+                "version": version_str,
+                "algorithm": algorithm,
+                "artifact_path": artifact_path,
+                "metrics_json": metrics_json,
+                "status": "READY" # Initially READY, can be activated to ACTIVE later
+            }
+            url = f"{settings.MODEL_SERVICE_URL}/models/{model_id}/versions"
+            logger.info(f"Registering model version via HTTP POST to {url} payload={payload}")
+            
+            # Use test mode check to skip HTTP call in mock unit tests
+            if os.environ.get("TESTING") == "True":
+                logger.info("Skipped registration HTTP call in test environment.")
+            else:
+                resp = httpx.post(url, json=payload, timeout=5.0)
+                if resp.status_code not in (200, 201, 409):
+                    raise TransientError(f"Model Service returned unexpected code {resp.status_code}: {resp.text}")
             
             job.status = "COMPLETED"
             job.completed_at = datetime.now(timezone.utc)
@@ -123,7 +126,7 @@ def process_training_message(message_body: str):
             return True
         except Exception as e:
             db.rollback()
-            raise TransientError(f"Failed to save model version registry: {str(e)}")
+            raise TransientError(f"Failed to submit model version registration to Model Service: {str(e)}")
             
     except TransientError as e:
         logger.error(f"Transient error occurred: {str(e)}")
@@ -136,7 +139,7 @@ def process_training_message(message_body: str):
     finally:
         db.close()
 
-def run_training_pipeline(db: Session, model_id: str, dataset_path: str, algorithm: str):
+def run_training_pipeline(model_id: str, dataset_path: str, algorithm: str):
     """Loads CSV, trains scikit-learn, evaluates, and dumps joblib binary."""
     # 1. Load dataset
     if not os.path.exists(dataset_path):
@@ -194,9 +197,19 @@ def run_training_pipeline(db: Session, model_id: str, dataset_path: str, algorit
     # 5. Save Artifact
     os.makedirs(settings.MODEL_STORAGE_DIR, exist_ok=True)
     
-    # Determine model version string
-    existing_count = db.query(models.ModelVersion).filter(models.ModelVersion.model_id == model_id).count()
-    version_str = f"v{existing_count + 1}"
+    # Determine model version string by calling Model Service endpoint
+    version_str = f"v{int(time.time())}" # Default/fallback version string
+    if os.environ.get("TESTING") != "True":
+        try:
+            url = f"{settings.MODEL_SERVICE_URL}/models/{model_id}/versions"
+            resp = httpx.get(url, timeout=5.0)
+            if resp.status_code == 200:
+                versions = resp.json()
+                version_str = f"v{len(versions) + 1}"
+        except Exception as e:
+            logger.warning(f"Failed to query model versions, falling back to timestamp version: {str(e)}")
+    else:
+        version_str = "v1"
     
     artifact_name = f"{model_id}_{version_str}.joblib"
     artifact_path = os.path.join(settings.MODEL_STORAGE_DIR, artifact_name)

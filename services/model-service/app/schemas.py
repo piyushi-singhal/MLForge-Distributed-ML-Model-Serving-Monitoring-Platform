@@ -8,10 +8,10 @@ class ModelBase(BaseModel):
     description: str | None = None
 
 class ModelCreate(ModelBase):
-    created_by: int | None = None
+    created_by: str | None = None  # User email or string ID from authorization, no FK
 
 class ModelResponse(ModelBase):
-    created_by: int | None
+    created_by: str | None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

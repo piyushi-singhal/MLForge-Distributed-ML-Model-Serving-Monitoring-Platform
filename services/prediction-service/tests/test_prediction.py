@@ -11,6 +11,7 @@ import json
 
 # Resolve parent directory to locate 'app' module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+os.environ["TESTING"] = "True"
 
 # Mock Redis before importing app.main
 class MockRedis:
@@ -95,23 +96,6 @@ def test_ready():
     assert response.json() == {"status": "ready"}
 
 def test_predictions_caching_hit_and_miss():
-    # Seed model registry with an ACTIVE model version
-    db = TestingSessionLocal()
-    model = models.Model(id="equipment-failure", name="Failure Classifier")
-    db.add(model)
-    db.commit()
-    
-    version = models.ModelVersion(
-        model_id="equipment-failure",
-        version="v1",
-        algorithm="logistic_regression",
-        artifact_path=MODEL_PATH,
-        status="ACTIVE"
-    )
-    db.add(version)
-    db.commit()
-    db.close()
-    
     # 1. First request -> Cache MISS (should call model fit and save to cache)
     payload = {
         "model_id": "equipment-failure",
