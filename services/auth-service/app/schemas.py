@@ -1,11 +1,11 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 
 class UserBase(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., description="The user's email address")
 
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(..., description="The user's chosen password (will be hashed)")
 
 class UserResponse(UserBase):
     id: int

@@ -110,6 +110,24 @@ def get_model_instance(artifact_path: str):
         _loaded_models[artifact_path] = joblib.load(artifact_path)
     return _loaded_models[artifact_path]
 
+def fetch_with_retries(url: str, max_attempts: int = 3, base_delay: float = 0.5) -> httpx.Response:
+    timeout = httpx.Timeout(5.0, connect=2.0)
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resp = httpx.get(url, timeout=timeout)
+            if resp.status_code >= 500:
+                if attempt < max_attempts:
+                    logger.warning(f"Model Service returned {resp.status_code}, retrying attempt {attempt}/{max_attempts}...", extra={"event": "model_service_retry"})
+                    time.sleep(base_delay * (2 ** (attempt - 1)))
+                    continue
+            return resp
+        except httpx.RequestError as e:
+            if attempt < max_attempts:
+                logger.warning(f"Model Service connection error: {str(e)}, retrying attempt {attempt}/{max_attempts}...", extra={"event": "model_service_retry"})
+                time.sleep(base_delay * (2 ** (attempt - 1)))
+                continue
+            raise e
+
 @app.post("/predictions", response_model=schemas.PredictionResponse)
 def get_prediction(pred_in: schemas.PredictionInput, db: Session = Depends(get_db)):
     start_time = time.perf_counter()
@@ -127,7 +145,7 @@ def get_prediction(pred_in: schemas.PredictionInput, db: Session = Depends(get_d
         try:
             if pred_in.model_version:
                 url = f"{settings.MODEL_SERVICE_URL}/models/{pred_in.model_id}/versions"
-                resp = httpx.get(url, timeout=5.0)
+                resp = fetch_with_retries(url)
                 if resp.status_code == 200:
                     versions = resp.json()
                     # Find matching version
@@ -139,7 +157,7 @@ def get_prediction(pred_in: schemas.PredictionInput, db: Session = Depends(get_d
             else:
                 # Load active version by default
                 url = f"{settings.MODEL_SERVICE_URL}/models/{pred_in.model_id}/active"
-                resp = httpx.get(url, timeout=5.0)
+                resp = fetch_with_retries(url)
                 if resp.status_code == 200:
                     v = resp.json()
                     version_val = v["version"]

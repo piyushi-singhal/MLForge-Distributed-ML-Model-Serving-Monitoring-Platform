@@ -13,8 +13,9 @@ async_client = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global async_client
-    # Startup: Initialize shared HTTPX client
-    async_client = httpx.AsyncClient()
+    # Startup: Initialize shared HTTPX client with explicit timeouts
+    timeout = httpx.Timeout(10.0, connect=2.0)
+    async_client = httpx.AsyncClient(timeout=timeout)
     yield
     # Shutdown: Close client
     await async_client.aclose()
@@ -59,8 +60,8 @@ async def structured_logging_middleware(request: Request, call_next):
 async def reverse_proxy(target_url: str, request: Request) -> Response:
     global async_client
     if async_client is None:
-        async_client = httpx.AsyncClient()
-
+        timeout = httpx.Timeout(10.0, connect=2.0)
+        async_client = httpx.AsyncClient(timeout=timeout)
     request_id = getattr(request.state, "request_id", f"req_{uuid.uuid4().hex[:12]}")
         
     # Copy headers and inject correlation ID
@@ -77,45 +78,61 @@ async def reverse_proxy(target_url: str, request: Request) -> Response:
     
     logger.info(f"Routing method={request.method} path={request.url.path} ➔ target={target_url}", extra={"event": "routing_downstream"})
     
-    # 2. Forward request downstream
-    try:
-        resp = await async_client.request(
-            method=request.method,
-            url=target_url,
-            headers=headers,
-            content=body,
-            params=request.query_params,
-            timeout=10.0
-        )
-        
-        # Build gateway response
-        headers_out = dict(resp.headers)
-        # Inject correlation ID in response headers too
-        headers_out["X-Request-ID"] = request_id
-        
-        # Strip content-encoding like gzip to prevent double encoding or gzip mismatches in gateway
-        if "content-encoding" in headers_out:
-            del headers_out["content-encoding"]
+    # 2. Forward request downstream with bounded retries & exponential backoff
+    import asyncio
+    max_attempts = 3
+    base_delay = 0.5
+    
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resp = await async_client.request(
+                method=request.method,
+                url=target_url,
+                headers=headers,
+                content=body,
+                params=request.query_params
+            )
             
-        logger.info(f"Downstream Response status_code={resp.status_code}", extra={"event": "downstream_response"})
-        return Response(
-            content=resp.content,
-            status_code=resp.status_code,
-            headers=headers_out
-        )
-    except httpx.RequestError as e:
-        logger.error(f"Downstream service unavailable: {str(e)}", extra={"event": "downstream_error"})
-        import json
-        return Response(
-            content=json.dumps({
-                "error": "SERVICE_UNAVAILABLE",
-                "message": f"Connection to microservice failed: {str(e)}",
-                "request_id": request_id
-            }),
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            media_type="application/json",
-            headers={"X-Request-ID": request_id}
-        )
+            # If 5xx, we might want to retry
+            if resp.status_code >= 500:
+                if attempt < max_attempts:
+                    logger.warning(f"Downstream returned {resp.status_code}, retrying attempt {attempt}/{max_attempts}...", extra={"event": "downstream_retry"})
+                    await asyncio.sleep(base_delay * (2 ** (attempt - 1)))
+                    continue
+            
+            # Build gateway response (Success or 4xx, we don't retry 4xx)
+            headers_out = dict(resp.headers)
+            # Inject correlation ID in response headers too
+            headers_out["X-Request-ID"] = request_id
+            
+            # Strip content-encoding like gzip to prevent double encoding or gzip mismatches in gateway
+            if "content-encoding" in headers_out:
+                del headers_out["content-encoding"]
+                
+            logger.info(f"Downstream Response status_code={resp.status_code}", extra={"event": "downstream_response"})
+            return Response(
+                content=resp.content,
+                status_code=resp.status_code,
+                headers=headers_out
+            )
+        except httpx.RequestError as e:
+            if attempt < max_attempts:
+                logger.warning(f"Downstream connection error: {str(e)}, retrying attempt {attempt}/{max_attempts}...", extra={"event": "downstream_retry"})
+                await asyncio.sleep(base_delay * (2 ** (attempt - 1)))
+                continue
+            
+            logger.error(f"Downstream service unavailable after {max_attempts} attempts: {str(e)}", extra={"event": "downstream_error"})
+            import json
+            return Response(
+                content=json.dumps({
+                    "error": "SERVICE_UNAVAILABLE",
+                    "message": f"Connection to microservice failed after {max_attempts} attempts: {str(e)}",
+                    "request_id": request_id
+                }),
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                media_type="application/json",
+                headers={"X-Request-ID": request_id}
+            )
 
 # Wildcard route mappings
 @app.api_route("/api/auth/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])

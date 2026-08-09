@@ -1,10 +1,10 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 
 class TrainingJobCreate(BaseModel):
-    model_id: str
-    dataset_path: str
-    algorithm: str
+    model_id: str = Field(..., description="The ID/name of the model to train")
+    dataset_path: str = Field(..., description="URL or path to the training dataset (CSV, Parquet, etc.)")
+    algorithm: str = Field(..., description="The ML algorithm to use for training (e.g. random_forest)")
 
 class TrainingJobResponse(BaseModel):
     id: str

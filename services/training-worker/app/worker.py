@@ -26,6 +26,24 @@ class TransientError(Exception):
     """Raised for issues like temporary DB disconnects that are worth retrying."""
     pass
 
+def post_with_retries(url: str, json_data: dict, headers: dict, max_attempts: int = 3, base_delay: float = 0.5) -> httpx.Response:
+    timeout = httpx.Timeout(5.0, connect=2.0)
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resp = httpx.post(url, json=json_data, headers=headers, timeout=timeout)
+            if resp.status_code >= 500:
+                if attempt < max_attempts:
+                    logger.warning(f"Model Service returned {resp.status_code}, retrying attempt {attempt}/{max_attempts}...", extra={"event": "model_service_retry"})
+                    time.sleep(base_delay * (2 ** (attempt - 1)))
+                    continue
+            return resp
+        except httpx.RequestError as e:
+            if attempt < max_attempts:
+                logger.warning(f"Model Service connection error: {str(e)}, retrying attempt {attempt}/{max_attempts}...", extra={"event": "model_service_retry"})
+                time.sleep(base_delay * (2 ** (attempt - 1)))
+                continue
+            raise e
+
 class PermanentError(Exception):
     """Raised for issues like missing files or invalid parameters that should not be retried."""
     pass
@@ -123,7 +141,7 @@ def process_training_message(message_body: str):
                 logger.info("Skipped registration HTTP call in test environment.")
             else:
                 headers = {"X-Request-ID": request_id_var.get()}
-                resp = httpx.post(url, json=payload, headers=headers, timeout=5.0)
+                resp = post_with_retries(url, json_data=payload, headers=headers)
                 if resp.status_code not in (200, 201, 409):
                     raise TransientError(f"Model Service returned unexpected code {resp.status_code}: {resp.text}")
             
