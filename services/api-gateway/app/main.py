@@ -159,22 +159,22 @@ async def reverse_proxy(target_url: str, request: Request) -> Response:
 # Wildcard route mappings
 @app.api_route("/api/auth/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
 async def route_auth(path: str, request: Request):
-    target = f"{settings.AUTH_SERVICE_URL}/{path}"
+    target = f"{settings.AUTH_SERVICE_URL}/auth/{path}" if path else f"{settings.AUTH_SERVICE_URL}/auth"
     return await reverse_proxy(target, request)
 
 @app.api_route("/api/models/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
 async def route_models(path: str, request: Request):
-    target = f"{settings.MODEL_SERVICE_URL}/{path}"
+    target = f"{settings.MODEL_SERVICE_URL}/models/{path}" if path else f"{settings.MODEL_SERVICE_URL}/models"
     return await reverse_proxy(target, request)
 
 @app.api_route("/api/training/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
 async def route_training(path: str, request: Request):
-    target = f"{settings.TRAINING_SERVICE_URL}/{path}"
+    target = f"{settings.TRAINING_SERVICE_URL}/training/{path}" if path else f"{settings.TRAINING_SERVICE_URL}/training"
     return await reverse_proxy(target, request)
 
 @app.api_route("/api/predictions/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
 async def route_predictions(path: str, request: Request):
-    target = f"{settings.PREDICTION_SERVICE_URL}/{path}"
+    target = f"{settings.PREDICTION_SERVICE_URL}/predictions/{path}" if path else f"{settings.PREDICTION_SERVICE_URL}/predictions"
     return await reverse_proxy(target, request)
 
 @app.get("/health", status_code=status.HTTP_200_OK)
