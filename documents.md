@@ -1,0 +1,213 @@
+# MLForge Step-by-Step Implementation Logs
+
+## Phase 1: Repository Setup
+
+### Step 1: Initializing Documentation File (`documents.md`)
+* **What was changed/created**: Created the `documents.md` file in the workspace root (`/Users/piyushisinghal/Downloads/MLForge/documents.md`).
+* **Why this step was taken**: To establish a dedicated log detailing the exact step-by-step progress, design justifications, and preserved states for stakeholder review.
+* **What was NOT changed**: All other directories and files in `/Users/piyushisinghal/Downloads/MLForge/` (only `MLForge.pdf` was present, and remains untouched).
+
+### Step 2: Initializing Git Repository
+* **What was changed/created**: Ran `git init` in `/Users/piyushisinghal/Downloads/MLForge` to initialize an empty Git repository.
+* **Why this step was taken**: To establish local version control, allowing tracking of changes across distinct branch/PR workflows as specified by the project goals.
+* **What was NOT changed**: The existing files `MLForge.pdf` and `documents.md` were not altered or modified.
+
+### Step 3: Creating `.gitignore` File
+* **What was changed/created**: Created `.gitignore` in the workspace root.
+* **Why this step was taken**: To prevent build artifacts (like `__pycache__` and `node_modules`), IDE configurations, secrets (`.env`), and binary model artifacts (`storage/`, `*.joblib`, `*.pkl`) from being committed to Git.
+* **What was NOT changed**: The files `MLForge.pdf`, `documents.md`, and the Git repository config (`.git/`) were not modified.
+
+### Step 4: Creating `.env.example` File
+* **What was changed/created**: Created the `.env.example` environment variable template in the workspace root.
+* **Why this step was taken**: To provide a standardized environment configuration template for PostgreSQL, Redis, RabbitMQ, JWT parameters, and internal microservice URLs, preventing developers from committing sensitive actual credentials.
+* **What was NOT changed**: The files `MLForge.pdf`, `documents.md`, `.gitignore`, and the Git repository config (`.git/`) were not modified.
+
+### Step 5: Creating Directory Skeleton
+* **What was changed/created**: Created the repository directory skeleton (`services/`, `frontend/`, `infrastructure/`, `tests/`, `load-tests/`, `storage/`) and added `.gitkeep` files to track these empty directories.
+* **Why this step was taken**: To establish the structural layout defined on page 34 of the specification, ensuring modular separation of concerns for the microservices and infrastructure.
+* **What was NOT changed**: The existing files `MLForge.pdf`, `documents.md`, `.gitignore`, `.env.example`, and `.git/` configurations were not modified.
+
+### Step 6: Initializing README.md
+* **What was changed/created**: Created `README.md` at the workspace root containing the 26 required structure headers, architecture diagrams, goals, and technical specifications of the project.
+* **Why this step was taken**: To satisfy page 41, Section 58 of the project specification, ensuring anyone reading the repository can understand the entire project design and system architecture.
+* **What was NOT changed**: The existing files `MLForge.pdf`, `documents.md`, `.gitignore`, `.env.example`, skeleton directories, and Git settings were not modified.
+
+### Step 7: Creating `docker-compose.yml` Skeleton
+* **What was changed/created**: Created `docker-compose.yml` in the workspace root. It configures the Docker orchestration for the microservices (`api-gateway`, `auth-service`, `model-service`, `training-service`, `training-worker`, `prediction-service`) and the infrastructure components (`postgres`, `redis`, `rabbitmq`, `nginx`, `prometheus`, `grafana`), mapping dependencies (`depends_on`), volumes, and networks.
+* **Why this step was taken**: To establish the containerized environment layout early, ensuring internal container communications use service names (as per page 18 of the specification) rather than hardcoded URLs.
+* **What was NOT changed**: The existing files `MLForge.pdf`, `documents.md`, `.gitignore`, `.env.example`, `README.md`, skeleton directories, and Git settings were not modified.
+
+### Step 8: Verifying Repository Layout & Gitignore
+* **What was changed/created**: Ran local test commands (`git status` and `git check-ignore`) to verify that the skeleton directory structure, configuration files, and gitignore behave as expected.
+* **Why this step was taken**: To guarantee that sensitive environment variables (`.env`) and large model artifacts (`storage/models/*.joblib`) are excluded from tracking, and that the structure complies with page 34 of the specification.
+* **What was NOT changed**: All files created in the previous steps remain completely unchanged.
+
+--------------------------------------------------------------------------------------------
+## Phase 2: PostgreSQL Persistence
+
+### Step 9: Designing `init.sql` Database Schema
+* **What was changed/created**: Created `infrastructure/postgres/init.sql` containing the DDL statements for `users`, `models`, `model_versions`, `training_jobs`, `prediction_requests`, and `processed_events` tables.
+* **Why this step was taken**: To establish the structural SQL relational model mapping defined on page 14 of the engineering specification, complete with status check constraints, indexes for performance, and foreign keys for referential integrity.
+* **What was NOT changed**: The files `MLForge.pdf`, `documents.md`, `.gitignore`, `.env.example`, `README.md`, and skeleton directories were not modified.
+
+### Step 10: Updating Docker Compose Volume Mounts
+* **What was changed/created**: Modified `docker-compose.yml` to mount `init.sql` as a startup initialization script in `/docker-entrypoint-initdb.d/init.sql` for the `postgres` service.
+* **Why this step was taken**: To enable automatic schema creation and indexing on the database cluster boot inside containerized environments, ensuring database synchronization at deployment.
+* **What was NOT changed**: All microservices configuration blocks, network variables, and volume definitions outside the `postgres` service in `docker-compose.yml` were not modified.
+
+### Step 11: Creating SQLite Database Verification Script
+* **What was changed/created**: Created `tests/verify_db.py` to replicate the SQL schema logic in SQLite and execute programmatic tests on it.
+* **Why this step was taken**: To perform automated validation of the database schema layout, verifying that check constraints, uniqueness rules, foreign keys, and indexes enforce integrity cleanly within the sandboxed test environment.
+* **What was NOT changed**: All files in `services/`, `infrastructure/`, and the repository configs were not modified.
+
+### Step 12: Running Verification Tests
+* **What was changed/created**: Executed `python3 tests/verify_db.py`.
+* **Why this step was taken**: To run the 8 validation test cases (including user email uniqueness, model status limits, and idempotency key constraints) and verify that all rules pass successfully.
+* **What was NOT changed**: The created source files and structure remain unmodified.
+
+-------------------------------------------------------------------------------------------
+## Phase 3: Auth Service
+
+### Step 13: Creating `requirements.txt` for Auth Service
+* **What was changed/created**: Created `services/auth-service/requirements.txt` declaring dependencies including `fastapi`, `uvicorn`, `sqlalchemy`, `bcrypt`, `pyjwt`, and testing tools.
+* **Why this step was taken**: To standardise dependencies for installation in the Auth Service container environment.
+* **What was NOT changed**: The files `MLForge.pdf`, `documents.md`, `.gitignore`, `.env.example`, and `README.md` were not modified.
+
+### Step 14: Creating `app/config.py` Configuration File
+* **What was changed/created**: Created `services/auth-service/app/config.py` using Pydantic Settings to bind env-based PostgreSQL configuration, JWT secrets, algorithms, and expirations.
+* **Why this step was taken**: To isolate settings management, supporting dynamic microservice routing configuration based on Docker Compose environment variables.
+* **What was NOT changed**: All other directories and configurations outside the `auth-service` directory were not modified.
+
+### Step 15: Creating `app/database.py` Database Module
+* **What was changed/created**: Created `services/auth-service/app/database.py` mapping the SQLAlchemy database session manager and `get_db` helper dependency.
+* **Why this step was taken**: To abstract connection pools, supporting dynamic fallback to SQLite database configurations (`sqlite:///./auth.db`) when run locally.
+* **What was NOT changed**: The database configuration files and scripts in `/infrastructure` were not modified.
+
+### Step 16: Creating `app/models.py` User Model
+* **What was changed/created**: Created `services/auth-service/app/models.py` mapping the `users` table fields (`id`, `email`, `password_hash`, `created_at`, `updated_at`) in SQLAlchemy.
+* **Why this step was taken**: To bind database query objects to SQLAlchemy models in alignment with the Phase 2 database spec.
+* **What was NOT changed**: The schema files in the PostgreSQL folder were not modified.
+
+### Step 17: Creating `app/schemas.py` Validation Schemas
+* **What was changed/created**: Created `services/auth-service/app/schemas.py` containing Pydantic schemas for `UserCreate`, `UserResponse`, `UserLogin`, `Token`, and `TokenData`.
+* **Why this step was taken**: To ensure all HTTP request inputs and response payloads are strictly validated before processing or outputting user records.
+* **What was NOT changed**: Database models and connections were not modified.
+
+### Step 18: Creating `app/security.py` Security Module
+* **What was changed/created**: Created `services/auth-service/app/security.py` providing `bcrypt` password hashing and `PyJWT` bearer token encoding routines.
+* **Why this step was taken**: To secure sensitive authentication credentials (preventing plaintext storage in SQL) and generate valid, signed JSON Web Tokens for API endpoints.
+* **What was NOT changed**: Configuration variables and database models were not modified.
+
+### Step 19: Creating `app/main.py` FastAPI Application
+* **What was changed/created**: Created `services/auth-service/app/main.py` implementing endpoints `/auth/register`, `/auth/login`, `/auth/me`, `/health`, and `/ready`.
+* **Why this step was taken**: To establish the HTTP API surface of the authentication service, implementing user authentication, bearer token verification dependencies, aliveness tracking, and database connectivity checks.
+* **What was NOT changed**: Database models and configuration classes were not modified.
+
+### Step 20: Creating Test Suite `tests/test_auth.py`
+* **What was changed/created**: Created `services/auth-service/tests/test_auth.py` providing unit and integration tests using `fastapi.testclient.TestClient` against a mock in-memory SQLite database.
+* **Why this step was taken**: To test and verify the registration limits, login failures/successes, token verification, and health tracking in isolation.
+* **What was NOT changed**: Core application codes and configuration templates were not modified.
+
+-------------------------------------------------------------------------------------------
+## Phase 4: Model Service
+
+### Step 21: Designing Model Service Modules
+* **What was changed/created**: Created `requirements.txt`, `app/config.py`, `app/database.py`, and `app/__init__.py` under `services/model-service/`.
+* **Why this step was taken**: To establish the base configuration and database connection hooks for the Model Service.
+* **What was NOT changed**: The files `MLForge.pdf`, `documents.md`, `.gitignore`, `.env.example`, and `README.md` were not modified.
+
+### Step 22: Creating Model Database Mappings (`models.py`)
+* **What was changed/created**: Created `services/model-service/app/models.py` defining the `Model` and `ModelVersion` SQLAlchemy schemas.
+* **Why this step was taken**: To map model definitions and version states (`TRAINING`, `READY`, `ACTIVE`, `FAILED`, `ARCHIVED`) to database structures as required by the specification.
+* **What was NOT changed**: The Auth Service code and schemas were not modified.
+
+### Step 23: Creating Model API Routing (`main.py` and `schemas.py`)
+* **What was changed/created**: Created `schemas.py` and `main.py` under `services/model-service/app/`. They implement endpoints `/models`, `/models/{model_id}/versions`, and the `/activate` route which deactivates previous active versions and sets the target version to `ACTIVE`.
+* **Why this step was taken**: To expose the REST endpoints for registering models and managing their lifecycles.
+* **What was NOT changed**: The database configuration files and other services were not modified.
+
+### Step 24: Creating Model Service Test Suite
+* **What was changed/created**: Created `services/model-service/tests/test_model.py` containing automated tests running against an in-memory SQLite database.
+* **Why this step was taken**: To verify model creation, version listing, and activation logic in isolation.
+* **What was NOT changed**: Core application codes and configuration templates were not modified.
+
+-------------------------------------------------------------------------------------------
+## Phase 5: RabbitMQ Setup
+
+### Step 25: Creating RabbitMQ Connection and Queue Bindings
+* **What was changed/created**: Created `services/training-service/app/rabbitmq.py` declaring exchanges (`training.exchange`), queues (`training.jobs`), and the Dead-Letter Queue (DLQ) (`training.dead` linked via `x-dead-letter-exchange`). Added a bypass for testing mode.
+* **Why this step was taken**: To establish the messaging topologies specified in Section 9 and 13 of the project specification, ensuring failed messages flow to the DLQ after retry depletion.
+* **What was NOT changed**: The database connection modules and microservices router logic were not modified.
+
+-------------------------------------------------------------------------------------------
+## Phase 6: Training Service
+
+### Step 26: Designing Training Service Modules & Schema
+* **What was changed/created**: Created `requirements.txt`, `app/config.py`, `app/database.py`, `app/models.py`, `app/schemas.py`, and `app/__init__.py` under `services/training-service/`.
+* **Why this step was taken**: To establish the configuration and database schema for tracking training runs asynchronously.
+* **What was NOT changed**: The database scripts under `infrastructure/` and other services were not modified.
+
+### Step 27: Creating Training API Endpoints (`main.py`)
+* **What was changed/created**: Created `services/training-service/app/main.py` implementing `POST /training/jobs` (returns HTTP 202 Accepted and publishes tasks to RabbitMQ) and `GET /training/jobs/{job_id}` to retrieve progress.
+* **Why this step was taken**: To implement the non-blocking asynchronous training submission workflow defined in Section 8 of the specification.
+* **What was NOT changed**: The Model Service and Auth Service endpoints were not modified.
+
+### Step 28: Creating Training Service Test Suite
+* **What was changed/created**: Created `services/training-service/tests/test_training.py` validating enqueuing behaviors, health checks, and 202 responses under test mode.
+* **Why this step was taken**: To verify the training job enqueuing and state updates behave as expected in isolation.
+* **What was NOT changed**: Core application codes were not modified.
+
+-------------------------------------------------------------------------------------------
+## Phase 7: Training Worker
+
+### Step 29: Designing Worker Configuration and Database
+* **What was changed/created**: Created `requirements.txt`, `app/config.py`, `app/database.py`, `app/models.py`, and `app/__init__.py` under `services/training-worker/`.
+* **Why this step was taken**: To establish dependencies and configuration settings for the backend worker, supporting local SQLite data storage.
+* **What was NOT changed**: Database models and schema scripts in other microservices were not modified.
+
+### Step 30: Implementing Training Pipeline Core (`worker.py`)
+* **What was changed/created**: Created `services/training-worker/app/worker.py` containing message parsing, DB idempotency insertion checks, pandas loading, training, evaluations, and version registration.
+* **Why this step was taken**: To implement the actual model fitting pipeline (supporting random forest, logistic regression, and gradient boosting classifiers), binary dumps using `joblib`, and status updates as defined on page 9 of the spec.
+* **What was NOT changed**: The database schemas and model server code were not modified.
+
+### Step 31: Creating Worker Consumer Loop (`main.py`)
+* **What was changed/created**: Created `services/training-worker/app/main.py` implementing the RabbitMQ queue consumer listener, signal handlers for graceful shutdown, and retry/DLQ backoff routines.
+* **Why this step was taken**: To handle message consumption asynchronously, routing exhausted failures to the dead-letter queue after 3 retries.
+* **What was NOT changed**: The training pipeline core remains unchanged.
+
+### Step 32: Creating Training Worker Test Suite
+* **What was changed/created**: Created `services/training-worker/tests/test_worker.py` validating enqueuing runs, duplicate prevention, and permanent failure handlers.
+* **Why this step was taken**: To ensure worker idempotency checks and training loops run reliably in isolation.
+* **What was NOT changed**: Base pipeline execution remains unchanged.
+
+-------------------------------------------------------------------------------------------
+## Phase 8: Prediction Service
+
+### Step 33: Designing Prediction Service Base Configurations
+* **What was changed/created**: Created `requirements.txt`, `app/config.py`, `app/database.py`, `app/models.py`, `app/schemas.py`, and `app/__init__.py` under `services/prediction-service/`.
+* **Why this step was taken**: To configure settings for the model inference service, mapping database connections and local binary folders.
+* **What was NOT changed**: The database configurations of other services were not modified.
+
+### Step 34: Creating Prediction Endpoints (`main.py`)
+* **What was changed/created**: Created `services/prediction-service/app/main.py` exposing `/predictions` (resolves active versions, caches joblib binaries in-memory to prevent disk reloading overhead, executes inference, and logs requests to db) and `/ready` endpoints.
+* **Why this step was taken**: To serve real-time predictions with low latency while logging request history as specified in Section 14 of the engineering spec.
+* **What was NOT changed**: Pydantic schemas and database models were not modified.
+
+### Step 35: Creating Prediction Test Suite
+* **What was changed/created**: Created `services/prediction-service/tests/test_prediction.py` validating health tracking, model loading, mock predictions, and request logging.
+* **Why this step was taken**: To verify the prediction serving code behaves correctly under test environments.
+* **What was NOT changed**: Service endpoints remain unchanged.
+
+-------------------------------------------------------------------------------------------
+## Phase 9: Redis Caching (Next Phase)
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,217 @@
+version: '3.8'
+
+services:
+  # --- INFRASTRUCTURE ---
+  postgres:
+    image: postgres:16-alpine
+    container_name: mlforge-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mlforge}
+      POSTGRES_USER: ${POSTGRES_USER:-mlforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mlforge_dev_pwd}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mlforge-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: mlforge-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mlforge-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: mlforge-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "5672:5672"
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - mlforge-network
+
+  # --- CORE MICROSERVICES ---
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: mlforge-api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - AUTH_SERVICE_URL=http://auth-service:8000
+      - MODEL_SERVICE_URL=http://model-service:8000
+      - TRAINING_SERVICE_URL=http://training-service:8000
+      - PREDICTION_SERVICE_URL=http://prediction-service:8000
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - mlforge-network
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: mlforge-auth-service
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=${POSTGRES_DB:-mlforge}
+      - POSTGRES_USER=${POSTGRES_USER:-mlforge}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mlforge_dev_pwd}
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mlforge-network
+
+  model-service:
+    build:
+      context: ./services/model-service
+      dockerfile: Dockerfile
+    container_name: mlforge-model-service
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=${POSTGRES_DB:-mlforge}
+      - POSTGRES_USER=${POSTGRES_USER:-mlforge}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mlforge_dev_pwd}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mlforge-network
+
+  training-service:
+    build:
+      context: ./services/training-service
+      dockerfile: Dockerfile
+    container_name: mlforge-training-service
+    environment:
+      - POSTGRES_HOST=postgres
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - mlforge-network
+
+  training-worker:
+    build:
+      context: ./services/training-worker
+      dockerfile: Dockerfile
+    container_name: mlforge-training-worker
+    environment:
+      - POSTGRES_HOST=postgres
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+    volumes:
+      - ./storage/models:/data/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - mlforge-network
+
+  prediction-service:
+    build:
+      context: ./services/prediction-service
+      dockerfile: Dockerfile
+    environment:
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+      - MODEL_SERVICE_URL=http://model-service:8000
+    volumes:
+      - ./storage/models:/data/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mlforge-network
+
+  # --- REVERSE PROXY / LOAD BALANCER ---
+  nginx:
+    build:
+      context: ./infrastructure/nginx
+      dockerfile: Dockerfile
+    container_name: mlforge-nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - prediction-service
+    networks:
+      - mlforge-network
+
+  # --- OBSERVABILITY ---
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mlforge-prometheus
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - mlforge-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mlforge-grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - mlforge-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  grafana_data:
+
+networks:
+  mlforge-network:
+    driver: bridge
