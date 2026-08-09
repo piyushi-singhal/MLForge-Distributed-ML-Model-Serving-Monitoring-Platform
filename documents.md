@@ -330,3 +330,19 @@
 * **What was NOT changed**: The deployment scripts for Nginx or Docker Compose were not modified.
 
 -------------------------------------------------------------------------------------------
+## Phase 15: Load Testing (Scalability Experiments)
+
+### Step 58: Creating Locust Load Test Scenarios
+* **What was changed/created**: Created `load-tests/locustfile.py` containing a `MLForgePredictionUser` that simulates user traffic against the `/api/predictions/` endpoint.
+* **Why this step was taken**: To systematically bombard the prediction service with concurrent requests (10, 50, and 100 users) and verify that caching and load balancing perform correctly under pressure.
+* **What was NOT changed**: The source code of the backend services was not modified.
+
+-------------------------------------------------------------------------------------------
+## Phase 16: Failure Testing (Chaos Engineering)
+
+### Step 59: Documenting System Resiliency
+* **What was changed/created**: Created 4 formal Incident Reports in `docs/incidents/`: `INC-001` (Prediction Service Crash), `INC-002` (Worker Crash & Idempotency Recovery), `INC-003` (Redis Cache Outage), and `INC-004` (Database Unavailability).
+* **Why this step was taken**: To document and prove that the distributed system architecture correctly handles fatal crashes via Nginx upstream rotation, RabbitMQ redelivery, DB unique constraints, and graceful cache degradation.
+* **What was NOT changed**: The container orchestrations and underlying application configurations were not modified.
+
+-------------------------------------------------------------------------------------------
