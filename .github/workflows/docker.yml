@@ -1,0 +1,40 @@
+name: MLForge Docker CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  docker-build-push:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    # We wait for CI to pass on GitHub Actions implicitly if we set up branch protection rules, 
+    # but to explicitly require it in the workflow, we can use a status check or simply re-run tests 
+    # or rely on branch protection. For simplicity, we just build and push here.
+
+    - name: Log in to the Container registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Build and Tag Docker Images
+      run: |
+        docker build -t ghcr.io/${{ github.repository_owner }}/mlforge-auth-service:${{ github.sha }} ./services/auth-service
+        docker build -t ghcr.io/${{ github.repository_owner }}/mlforge-model-service:${{ github.sha }} ./services/model-service
+        docker build -t ghcr.io/${{ github.repository_owner }}/mlforge-training-service:${{ github.sha }} ./services/training-service
+        docker build -t ghcr.io/${{ github.repository_owner }}/mlforge-training-worker:${{ github.sha }} ./services/training-worker
+        docker build -t ghcr.io/${{ github.repository_owner }}/mlforge-prediction-service:${{ github.sha }} ./services/prediction-service
+        docker build -t ghcr.io/${{ github.repository_owner }}/mlforge-api-gateway:${{ github.sha }} ./services/api-gateway
+        
+    - name: Push Docker Images
+      run: |
+        docker push ghcr.io/${{ github.repository_owner }}/mlforge-auth-service:${{ github.sha }}
+        docker push ghcr.io/${{ github.repository_owner }}/mlforge-model-service:${{ github.sha }}
+        docker push ghcr.io/${{ github.repository_owner }}/mlforge-training-service:${{ github.sha }}
+        docker push ghcr.io/${{ github.repository_owner }}/mlforge-training-worker:${{ github.sha }}
+        docker push ghcr.io/${{ github.repository_owner }}/mlforge-prediction-service:${{ github.sha }}
+        docker push ghcr.io/${{ github.repository_owner }}/mlforge-api-gateway:${{ github.sha }}

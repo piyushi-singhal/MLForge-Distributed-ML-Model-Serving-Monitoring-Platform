@@ -367,3 +367,21 @@
 * **What was NOT changed**: The Prometheus scraping targets (since they already point to the `/metrics` endpoints) were not modified.
 
 -------------------------------------------------------------------------------------------
+## Phase 19: Finalizing Testing & Automation
+
+### Step 63: CI/CD Restructuring
+* **What was changed/created**: Completely refactored `.github/workflows/ci.yml` into granular stages (`Lint`, `Unit Tests`, `Integration Tests`, `E2E Tests`) and created `docker.yml` for isolated container building and GHCR registry pushes.
+* **Why this step was taken**: To adhere to strict DevOps best practices by isolating testing stages from deployment stages.
+* **What was NOT changed**: The underlying tests themselves were not modified.
+
+### Step 64: Load Testing Evidence
+* **What was changed/created**: Executed benchmarks and created `load-tests/results.md` detailing Requests/sec, p50, and p99 metrics comparing 1 vs 3 prediction replicas.
+* **Why this step was taken**: To provide empirical evidence of horizontal scaling for architecture portfolios.
+* **What was NOT changed**: The load testing python script logic itself was untouched.
+
+### Step 65: Chaos Engineering Scripts & Tests
+* **What was changed/created**: Authored bash scripts in `scripts/chaos/` to stop key infrastructure dynamically (`stop-worker.sh`, `stop-redis.sh`, etc). Created Pytest suites in `tests/failure/` to programmatically assert system recovery using subprocess docker commands.
+* **Why this step was taken**: To create an automated fault-tolerance suite proving the architecture handles crashes gracefully via redelivery and load balancing.
+* **What was NOT changed**: Application source code was not modified.
+
+-------------------------------------------------------------------------------------------
