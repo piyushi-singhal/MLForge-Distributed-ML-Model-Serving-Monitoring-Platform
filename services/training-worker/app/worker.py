@@ -92,7 +92,7 @@ def process_training_message(message_body: str):
 
         # 4. Core Training Pipeline
         try:
-            metrics_json, artifact_path, version_str = run_training_pipeline(model_id, dataset_path, algorithm)
+            metrics_json, artifact_path, version_str = run_training_pipeline(model_id, dataset_path, algorithm, event_id)
         except PermanentError as e:
             # Log failure in job tracker
             job.status = "FAILED"
@@ -147,7 +147,7 @@ def process_training_message(message_body: str):
     finally:
         db.close()
 
-def run_training_pipeline(model_id: str, dataset_path: str, algorithm: str):
+def run_training_pipeline(model_id: str, dataset_path: str, algorithm: str, event_id: str):
     """Loads CSV, trains scikit-learn, evaluates, and dumps joblib binary."""
     # 1. Load dataset
     if not os.path.exists(dataset_path):

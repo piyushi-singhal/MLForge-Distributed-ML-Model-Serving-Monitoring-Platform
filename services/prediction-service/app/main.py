@@ -172,7 +172,7 @@ def get_prediction(pred_in: schemas.PredictionInput, db: Session = Depends(get_d
                 
                 REDIS_CACHE_HITS_TOTAL.inc()
                 PREDICTION_REQUESTS_TOTAL.labels(model_id=pred_in.model_id, model_version=version_val).inc()
-                PREDICTION_LATENCY.labels(model_id=pred_in.model_id, model_version=version_val).observe(process_time_ms / 1000.0 if 'process_time_ms' in locals() else (latency_ms / 1000.0))
+                PREDICTION_LATENCY.labels(model_id=pred_in.model_id, model_version=version_val).observe(latency_ms / 1000.0)
                 
                 logger.info(f"Cache HIT for key={cache_key}")
                 return {
