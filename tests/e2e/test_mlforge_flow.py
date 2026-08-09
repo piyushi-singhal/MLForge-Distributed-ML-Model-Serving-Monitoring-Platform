@@ -25,7 +25,7 @@ def test_mlforge_golden_path():
         "email": f"{username}@example.com",
         "password": password
     })
-    assert reg_response.status_code == 200, f"Registration failed: {reg_response.text}"
+    assert reg_response.status_code == 201, f"Registration failed: {reg_response.text}"
     user_id = reg_response.json()["id"]
 
     # 2. Login
@@ -41,10 +41,11 @@ def test_mlforge_golden_path():
     # 3. Create Model
     model_name = f"test-model-{TEST_SUFFIX}"
     model_response = client.post(f"{BASE_URL}/models/", json={
+        "id": model_name,
         "name": model_name,
         "description": "E2E Test Model"
     }, headers=headers)
-    assert model_response.status_code == 200, f"Model creation failed: {model_response.text}"
+    assert model_response.status_code == 201, f"Model creation failed: {model_response.text}"
     model_id = model_response.json()["id"]
 
     # 4. Submit Training Job
@@ -82,10 +83,11 @@ def test_mlforge_golden_path():
     assert len(versions) > 0, "No model versions found after successful training."
     
     # We take the first created version (which the worker just created)
+    version_id = versions[0]["id"]
     version_name = versions[0]["version"]
 
     # 6. Activate Version
-    activate_resp = client.post(f"{BASE_URL}/models/{model_id}/versions/{version_name}/active", headers=headers)
+    activate_resp = client.post(f"{BASE_URL}/models/{model_id}/versions/{version_id}/activate", headers=headers)
     assert activate_resp.status_code == 200, f"Failed to activate version: {activate_resp.text}"
 
     # 7. Submit Prediction (Cache Miss)
