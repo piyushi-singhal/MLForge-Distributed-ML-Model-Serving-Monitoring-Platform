@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request
+from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import uuid
@@ -26,10 +27,38 @@ logger = setup_logger("prediction-service")
 # Initialize tables
 Base.metadata.create_all(bind=engine)
 
+# Initialize Redis connection client (with graceful error handling)
+redis_client = None
+if settings.REDIS_HOST:
+    try:
+        redis_client = redis.Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=0,
+            decode_responses=True,
+            socket_timeout=2.0
+        )
+        redis_client.ping()
+        logger.info("Connected to Redis successfully.")
+    except Exception as e:
+        logger.warning(f"Failed to connect to Redis. Running in degraded mode without cache. Error: {str(e)}")
+        redis_client = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    # Shutdown: close DB connections gracefully
+    engine.dispose()
+    logger.info("Database connection engine disposed.", extra={"event": "shutdown"})
+    if redis_client:
+        redis_client.close()
+        logger.info("Redis connection closed.", extra={"event": "shutdown"})
+
 app = FastAPI(
     title="MLForge Prediction Service",
     description="Low-latency real-time model inference serving microservice for MLForge",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 PREDICTION_REQUESTS_TOTAL = Counter(
@@ -70,19 +99,6 @@ async def structured_logging_middleware(request: Request, call_next):
         logger.error(f"{request.method} {request.url.path} {response.status_code}", extra={"event": "http_request", "latency_ms": round(process_time_ms, 2)})
         
     return response
-
-# Initialize Redis connection client (with graceful error handling)
-redis_client = None
-try:
-    redis_client = redis.Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        db=0,
-        socket_connect_timeout=1,
-        decode_responses=True
-    )
-except Exception as e:
-    logger.warning(f"Failed to connect to Redis on startup: {str(e)}")
 
 # Global in-memory model cache to prevent reloading from disk on every HTTP request
 _loaded_models = {}
@@ -286,11 +302,35 @@ def health():
 
 @app.get("/ready", status_code=status.HTTP_200_OK)
 def ready(db: Session = Depends(get_db)):
+    # 1. Check PostgreSQL
     try:
         db.execute(text("SELECT 1"))
-        return {"status": "ready"}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Database connection error: {str(e)}"
         )
+        
+    # 2. Check Model Service HTTP Dependency
+    try:
+        if os.environ.get("TESTING") != "True":
+            # Just do a lightweight health check to verify it's reachable
+            url = f"{settings.MODEL_SERVICE_URL}/health"
+            resp = httpx.get(url, timeout=2.0)
+            if resp.status_code != 200:
+                raise Exception(f"Model service returned status {resp.status_code}")
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Model Service unreachable: {str(e)}"
+        )
+        
+    # 3. Check Redis (Optional, degrade gracefully)
+    if redis_client:
+        try:
+            redis_client.ping()
+        except Exception as e:
+            logger.warning(f"Redis not available during readiness check: {str(e)}")
+            # Intentionally NOT failing the readiness probe here
+            
+    return {"status": "ready"}

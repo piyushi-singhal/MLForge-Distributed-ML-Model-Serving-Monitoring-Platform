@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request
+from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import uuid
@@ -29,10 +30,18 @@ TRAINING_JOBS_TOTAL = Counter(
     "Total number of training jobs submitted successfully"
 )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    # Shutdown: close DB connections gracefully
+    engine.dispose()
+    logger.info("Database connection engine disposed.", extra={"event": "shutdown"})
+
 app = FastAPI(
     title="MLForge Training Service",
     description="Asynchronous training job enqueuing service for MLForge",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 Instrumentator().instrument(app).expose(app)
@@ -113,11 +122,24 @@ def health():
 
 @app.get("/ready", status_code=status.HTTP_200_OK)
 def ready(db: Session = Depends(get_db)):
+    # 1. Check PostgreSQL
     try:
         db.execute(text("SELECT 1"))
-        return {"status": "ready"}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Database connection error: {str(e)}"
         )
+        
+    # 2. Check RabbitMQ
+    try:
+        connection = rabbitmq.get_rabbitmq_connection()
+        if connection:
+            connection.close()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"RabbitMQ connection error: {str(e)}"
+        )
+        
+    return {"status": "ready"}

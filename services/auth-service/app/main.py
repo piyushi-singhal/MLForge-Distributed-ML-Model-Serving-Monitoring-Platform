@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request
+from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import jwt
@@ -16,10 +17,18 @@ from . import models, schemas, security
 # Automatically create database tables at startup (e.g. SQLite for local testing)
 Base.metadata.create_all(bind=engine)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    # Shutdown: close DB connections gracefully
+    engine.dispose()
+    logger.info("Database connection engine disposed.", extra={"event": "shutdown"})
+
 app = FastAPI(
     title="MLForge Auth Service",
     description="Authentication and identity validation microservice for MLForge",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 Instrumentator().instrument(app).expose(app)

@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request
+from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List
@@ -15,10 +16,18 @@ from . import models, schemas
 # Initialize tables (e.g. SQLite local run)
 Base.metadata.create_all(bind=engine)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    # Shutdown: close DB connections gracefully
+    engine.dispose()
+    logger.info("Database connection engine disposed.", extra={"event": "shutdown"})
+
 app = FastAPI(
     title="MLForge Model Service",
     description="Model Registry and lifecycle management service for MLForge",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 Instrumentator().instrument(app).expose(app)
