@@ -1,4 +1,6 @@
 from fastapi import FastAPI, Request, Response, status
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import httpx
 import uuid
@@ -29,6 +31,26 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify frontend domains
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+MAX_REQUEST_SIZE = 50 * 1024 * 1024  # 50 MB
+
+@app.middleware("http")
+async def payload_size_limit_middleware(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_REQUEST_SIZE:
+        return JSONResponse(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            content={"detail": "Payload too large. Maximum size is 50MB."}
+        )
+    return await call_next(request)
 
 Instrumentator().instrument(app).expose(app)
 
