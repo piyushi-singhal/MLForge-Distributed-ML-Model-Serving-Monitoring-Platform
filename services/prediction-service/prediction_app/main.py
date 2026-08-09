@@ -14,6 +14,7 @@ import logging
 import httpx
 from typing import Dict, Any
 from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import Counter, Histogram
 
 from .database import engine, Base, get_db
 from .config import settings
@@ -29,6 +30,25 @@ app = FastAPI(
     title="MLForge Prediction Service",
     description="Low-latency real-time model inference serving microservice for MLForge",
     version="1.0.0"
+)
+
+PREDICTION_REQUESTS_TOTAL = Counter(
+    "prediction_requests_total", 
+    "Total number of prediction requests served",
+    ["model_id", "model_version"]
+)
+PREDICTION_LATENCY = Histogram(
+    "prediction_latency_seconds", 
+    "Latency of prediction requests in seconds",
+    ["model_id", "model_version"]
+)
+REDIS_CACHE_HITS_TOTAL = Counter(
+    "redis_cache_hits_total", 
+    "Total number of Redis cache hits for predictions"
+)
+REDIS_CACHE_MISSES_TOTAL = Counter(
+    "redis_cache_misses_total", 
+    "Total number of Redis cache misses for predictions"
 )
 
 Instrumentator().instrument(app).expose(app)
@@ -150,6 +170,10 @@ def get_prediction(pred_in: schemas.PredictionInput, db: Session = Depends(get_d
                 except Exception:
                     db.rollback()
                 
+                REDIS_CACHE_HITS_TOTAL.inc()
+                PREDICTION_REQUESTS_TOTAL.labels(model_id=pred_in.model_id, model_version=version_val).inc()
+                PREDICTION_LATENCY.labels(model_id=pred_in.model_id, model_version=version_val).observe(process_time_ms / 1000.0 if 'process_time_ms' in locals() else (latency_ms / 1000.0))
+                
                 logger.info(f"Cache HIT for key={cache_key}")
                 return {
                     "request_id": request_id,
@@ -234,6 +258,10 @@ def get_prediction(pred_in: schemas.PredictionInput, db: Session = Depends(get_d
         db.commit()
     except Exception:
         db.rollback()
+
+    REDIS_CACHE_MISSES_TOTAL.inc()
+    PREDICTION_REQUESTS_TOTAL.labels(model_id=pred_in.model_id, model_version=version_val).inc()
+    PREDICTION_LATENCY.labels(model_id=pred_in.model_id, model_version=version_val).observe(latency_ms / 1000.0)
 
     return {
         "request_id": request_id,

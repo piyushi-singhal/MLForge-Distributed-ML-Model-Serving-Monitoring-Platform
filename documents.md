@@ -354,3 +354,16 @@
 * **What was NOT changed**: The individual unit tests and existing application logic were not modified.
 
 -------------------------------------------------------------------------------------------
+## Phase 18: Custom Domain Observability
+
+### Step 61: Injecting Business Logic Metrics
+* **What was changed/created**: Added `prometheus_client` Counters and Histograms into `prediction-service` (`prediction_requests_total`, `prediction_latency_seconds`, `redis_cache_hits_total`, `redis_cache_misses_total`), `training-service` (`training_jobs_total`), and updated the worker (`training_failures_total`, `training_retries_total`). 
+* **Why this step was taken**: Generic HTTP metrics do not capture machine learning domain health. We needed custom metrics tracking cache hits and job failure rates to properly construct the system overview Grafana dashboard.
+* **What was NOT changed**: The default FastAPI instrumentator was left intact.
+
+### Step 62: Designing the System Overview Dashboard
+* **What was changed/created**: Renamed and entirely restructured the Grafana dashboard JSON to `infrastructure/grafana/dashboards/mlforge-overview.json`. Updated `dashboard.yml` and `docker-compose.yml` mounts to cleanly import this dashboard at startup.
+* **Why this step was taken**: To provide a singular pane of glass monitoring API request rates, prediction latencies (p95), cache hit ratios, and RabbitMQ dead-letter tracking natively out-of-the-box.
+* **What was NOT changed**: The Prometheus scraping targets (since they already point to the `/metrics` endpoints) were not modified.
+
+-------------------------------------------------------------------------------------------

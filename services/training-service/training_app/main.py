@@ -7,6 +7,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import Counter
 
 from .database import engine, Base, get_db
 from . import models, schemas, rabbitmq
@@ -22,6 +23,11 @@ try:
     rabbitmq.setup_rabbitmq()
 except Exception:
     pass
+
+TRAINING_JOBS_TOTAL = Counter(
+    "training_jobs_total",
+    "Total number of training jobs submitted successfully"
+)
 
 app = FastAPI(
     title="MLForge Training Service",
@@ -89,6 +95,7 @@ def submit_training_job(job_in: schemas.TrainingJobCreate, db: Session = Depends
             detail=f"Temporary message broker connection failure: {str(e)}"
         )
         
+    TRAINING_JOBS_TOTAL.inc()
     db.refresh(db_job)
     return db_job
 

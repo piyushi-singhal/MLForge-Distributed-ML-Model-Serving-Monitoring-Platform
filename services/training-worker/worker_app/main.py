@@ -123,9 +123,9 @@ def callback(ch, method, properties, body):
 from prometheus_client import start_http_server, Counter
 
 # Define custom metrics
-MESSAGES_PROCESSED = Counter('training_messages_processed_total', 'Total messages processed')
-MESSAGES_FAILED = Counter('training_messages_failed_total', 'Total messages failed permanently')
-MESSAGES_RETRIED = Counter('training_messages_retried_total', 'Total messages retried due to transient errors')
+MESSAGES_PROCESSED = Counter('training_worker_jobs_processed_total', 'Total messages processed')
+MESSAGES_FAILED = Counter('training_failures_total', 'Total messages failed permanently')
+MESSAGES_RETRIED = Counter('training_retries_total', 'Total messages retried due to transient errors')
 
 def main():
     if os.environ.get("TESTING") == "True":
