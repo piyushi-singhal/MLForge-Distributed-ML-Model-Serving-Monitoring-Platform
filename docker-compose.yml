@@ -61,7 +61,6 @@ services:
     build:
       context: ./services/api-gateway
       dockerfile: Dockerfile
-    container_name: mlforge-api-gateway
     ports:
       - "8000:8000"
     environment:
@@ -87,7 +86,6 @@ services:
     build:
       context: ./services/auth-service
       dockerfile: Dockerfile
-    container_name: mlforge-auth-service
     environment:
       - POSTGRES_HOST=postgres
       - POSTGRES_DB=auth_db
@@ -104,7 +102,6 @@ services:
     build:
       context: ./services/model-service
       dockerfile: Dockerfile
-    container_name: mlforge-model-service
     environment:
       - POSTGRES_HOST=postgres
       - POSTGRES_DB=model_db
@@ -120,7 +117,6 @@ services:
     build:
       context: ./services/training-service
       dockerfile: Dockerfile
-    container_name: mlforge-training-service
     environment:
       - POSTGRES_HOST=postgres
       - POSTGRES_DB=training_db
@@ -141,7 +137,6 @@ services:
     build:
       context: ./services/training-worker
       dockerfile: Dockerfile
-    container_name: mlforge-training-worker
     environment:
       - POSTGRES_HOST=postgres
       - POSTGRES_DB=training_db
@@ -165,7 +160,6 @@ services:
     build:
       context: ./services/prediction-service
       dockerfile: Dockerfile
-    container_name: mlforge-prediction-service
     environment:
       - POSTGRES_HOST=postgres
       - POSTGRES_DB=prediction_db
