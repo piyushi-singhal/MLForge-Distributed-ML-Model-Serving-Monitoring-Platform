@@ -205,21 +205,11 @@ def run_training_pipeline(model_id: str, dataset_path: str, algorithm: str):
     # 5. Save Artifact
     os.makedirs(settings.MODEL_STORAGE_DIR, exist_ok=True)
     
-    # Determine model version string by calling Model Service endpoint
-    version_str = f"v{int(time.time())}" # Default/fallback version string
-    if os.environ.get("TESTING") != "True":
-        try:
-            url = f"{settings.MODEL_SERVICE_URL}/models/{model_id}/versions"
-            resp = httpx.get(url, timeout=5.0)
-            if resp.status_code == 200:
-                versions = resp.json()
-                version_str = f"v{len(versions) + 1}"
-        except Exception as e:
-            logger.warning(f"Failed to query model versions, falling back to timestamp version: {str(e)}")
-    else:
-        version_str = "v1"
+    # Determine model version securely utilizing Model Service auto-generation
+    version_str = "auto"
     
-    artifact_name = f"{model_id}_{version_str}.joblib"
+    # Save using event_id to ensure artifact path is perfectly unique regardless of version
+    artifact_name = f"{model_id}_{event_id}.joblib"
     artifact_path = os.path.join(settings.MODEL_STORAGE_DIR, artifact_name)
     
     try:

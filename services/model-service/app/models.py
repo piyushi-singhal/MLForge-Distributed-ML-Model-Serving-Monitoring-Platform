@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, JSON
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, JSON, UniqueConstraint
 from sqlalchemy.sql import func
 from .database import Base
 
@@ -22,3 +22,7 @@ class ModelVersion(Base):
     metrics_json = Column(JSON, default={})
     status = Column(String(50), nullable=False) # 'TRAINING', 'READY', 'ACTIVE', 'FAILED', 'ARCHIVED'
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('model_id', 'version', name='_model_version_uc'),
+    )

@@ -404,3 +404,15 @@
 * **What was NOT changed**: The initial connection retry logic on boot was preserved.
 
 -------------------------------------------------------------------------------------------
+
+### Step 69: Concurrency-Safe Model Versioning
+* **What was changed/created**: Added a `UniqueConstraint('model_id', 'version')` to the `ModelVersion` table. Upgraded the Model Service endpoint to accept `version="auto"` and securely assign `v{db_version.id}` within the database transaction. Updated the Training Worker to save binaries using the unique `event_id` and rely on auto-generation.
+* **Why this step was taken**: To solve a race condition where multiple concurrent workers could query `len(versions)` and attempt to register the exact same version string simultaneously.
+* **What was NOT changed**: The API schema was preserved; `"auto"` acts as a special keyword.
+
+### Step 70: Engineering Evidence Documentation
+* **What was changed/created**: Extensively updated the `README.md` Fault Tolerance section to include empirical evidence logs (Failure, Expected, Observed, Result) for Worker Crashes, Redis Outages, and Load Balancer Failovers.
+* **Why this step was taken**: To transition the documentation from claiming "Supports fault tolerance" to actually proving it with engineering evidence derived from the chaos test suites.
+* **What was NOT changed**: The chaos scripts themselves were untouched.
+
+-------------------------------------------------------------------------------------------

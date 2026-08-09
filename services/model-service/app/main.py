@@ -106,16 +106,17 @@ def create_model_version(model_id: str, version_in: schemas.ModelVersionCreate, 
             detail="Model not found"
         )
         
-    # Verify duplicate version
-    duplicate = db.query(models.ModelVersion).filter(
-        models.ModelVersion.model_id == model_id,
-        models.ModelVersion.version == version_in.version
-    ).first()
-    if duplicate:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Version '{version_in.version}' already exists for model '{model_id}'"
-        )
+    # Verify duplicate version ONLY if not auto
+    if version_in.version != "auto":
+        duplicate = db.query(models.ModelVersion).filter(
+            models.ModelVersion.model_id == model_id,
+            models.ModelVersion.version == version_in.version
+        ).first()
+        if duplicate:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Version '{version_in.version}' already exists for model '{model_id}'"
+            )
         
     # Validate status values
     valid_statuses = {"TRAINING", "READY", "ACTIVE", "FAILED", "ARCHIVED"}
@@ -125,9 +126,12 @@ def create_model_version(model_id: str, version_in: schemas.ModelVersionCreate, 
             detail=f"Invalid status value. Must be one of: {', '.join(valid_statuses)}"
         )
 
+    # Use a placeholder if auto, we'll update it right after insert
+    initial_version = version_in.version if version_in.version != "auto" else "temp-auto"
+
     db_version = models.ModelVersion(
         model_id=model_id,
-        version=version_in.version,
+        version=initial_version,
         algorithm=version_in.algorithm,
         artifact_path=version_in.artifact_path,
         metrics_json=version_in.metrics_json,
@@ -136,6 +140,13 @@ def create_model_version(model_id: str, version_in: schemas.ModelVersionCreate, 
     db.add(db_version)
     db.commit()
     db.refresh(db_version)
+    
+    # Safely assign version based on database ID for concurrency
+    if version_in.version == "auto":
+        db_version.version = f"v{db_version.id}"
+        db.commit()
+        db.refresh(db_version)
+        
     return db_version
 
 @app.get("/models/{model_id}/versions", response_model=List[schemas.ModelVersionResponse])
