@@ -281,17 +281,52 @@
 * **What was NOT changed**: Redis caching logic and in-memory model caches were not modified.
 
 -------------------------------------------------------------------------------------------
-## Phase 13: Local Deployment Verification (Complete!)
+## Phase 12: Scalability & Nginx Load Balancing
 
+### Step 50: Removing Hardcoded Container Names
+* **What was changed/created**: Modified `docker-compose.yml` to remove `container_name` from all scalable microservices (`prediction-service`, `training-service`, etc.).
+* **Why this step was taken**: To enable horizontal scaling (e.g., `docker compose up --scale prediction-service=3`) without triggering Docker naming conflicts.
+* **What was NOT changed**: Network topologies, exposed ports, and volume mounts were not modified.
 
+### Step 51: Configuring Nginx as a Load Balancer
+* **What was changed/created**: Modified `infrastructure/nginx/nginx.conf` to add an `upstream prediction_backends` block, routing requests for `/api/predictions/` directly to the `prediction-service` replicas instead of routing them through the API Gateway.
+* **Why this step was taken**: To allow Nginx to act as a proper round-robin load balancer for stateless prediction instances, fulfilling the scalability architectural requirement.
+* **What was NOT changed**: The API gateway reverse proxy logic for other routes (`/auth`, `/models`, etc.) was not modified.
 
+-------------------------------------------------------------------------------------------
+## Phase 13: Monitoring & Observability
 
+### Step 52: Instrumenting FastAPI Services
+* **What was changed/created**: Added `prometheus-fastapi-instrumentator` to all REST API services (`api-gateway`, `auth-service`, `model-service`, `training-service`, `prediction-service`) and exposed `/metrics` in their `main.py` files.
+* **Why this step was taken**: To provide standardized HTTP metrics (request counts, 4xx/5xx errors, latencies) for Prometheus to scrape without modifying every single route.
+* **What was NOT changed**: The existing application routes and database connections were not modified.
 
+### Step 53: Instrumenting the Training Worker
+* **What was changed/created**: Added `prometheus_client` to `training-worker` and launched an isolated HTTP server on port 8000 inside `worker_app/main.py`. Configured custom `Counter` metrics (`MESSAGES_PROCESSED`, `MESSAGES_FAILED`, `MESSAGES_RETRIED`).
+* **Why this step was taken**: To track the internal state of the asynchronous RabbitMQ queue processing, specifically tracking dead-letter drops and transient failures.
+* **What was NOT changed**: The core machine learning pipeline logic was not modified.
 
+### Step 54: Configuring Grafana Dashboard Provisioning
+* **What was changed/created**: Created `dashboard.yml`, `datasource.yml`, and `mlforge-dashboard.json` in `infrastructure/grafana/provisioning/`. Mounted these directories into the Grafana container in `docker-compose.yml`.
+* **Why this step was taken**: To automate the deployment of the System Overview dashboard so operators don't have to manually configure UI panels.
+* **What was NOT changed**: The Prometheus scraping targets for original services were not modified.
 
+### Step 55: Implementing Structured Logging
+* **What was changed/created**: Added a logging middleware to all FastAPI `main.py` entry points that logs a JSON object containing `timestamp`, `service`, `level`, `request_id`, `event`, and `duration_ms`.
+* **Why this step was taken**: To enable distributed tracing and debugging by injecting the `X-Request-ID` correlation ID into all access logs.
+* **What was NOT changed**: Third-party library logging formats were not modified.
 
+-------------------------------------------------------------------------------------------
+## Phase 14: CI/CD Pipeline
 
+### Step 56: Setting up Continuous Integration
+* **What was changed/created**: Created `.github/workflows/ci.yml` defining a GitHub Actions workflow that runs `flake8`, executes `pytest`, and tests a `docker compose build`.
+* **Why this step was taken**: To introduce automated quality gates, ensuring broken code and syntax errors cannot be merged into the `main` branch.
+* **What was NOT changed**: The source code of the services was not modified.
 
+### Step 57: Setting up Continuous Deployment
+* **What was changed/created**: Created `.github/workflows/cd.yml` simulating a deployment pipeline to GitHub Container Registry (ghcr.io).
+* **Why this step was taken**: To prove the architecture is cloud-ready and reproducible from a clean machine without claiming fake deployment infrastructure.
+* **What was NOT changed**: The deployment scripts for Nginx or Docker Compose were not modified.
 
-
-
+-------------------------------------------------------------------------------------------
