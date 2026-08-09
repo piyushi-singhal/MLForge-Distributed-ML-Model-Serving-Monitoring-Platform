@@ -1,18 +1,18 @@
-import os
-import sys
-# Resolve parent directory to locate 'app' module
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.database import Base, get_db
-from app.main import app
+from auth_app.database import Base, get_db
+from auth_app.main import app
 
 # Create in-memory SQLite database for test runs
-engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+from sqlalchemy.pool import StaticPool
+engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Recreate tables for tests
@@ -121,4 +121,4 @@ def test_get_me():
     
     # 3. Get me with missing headers
     response = client.get("/auth/me")
-    assert response.status_code == 403 # HTTPBearer returns 403 Forbidden if Authorization header is missing
+    assert response.status_code == 401 # HTTPBearer returns 401 in newer versions or 403 in older

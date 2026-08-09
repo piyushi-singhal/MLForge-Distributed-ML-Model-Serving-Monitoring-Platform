@@ -1,23 +1,25 @@
 import os
-import sys
 import json
 import pytest
 import pandas as pd
 import uuid
 
-# Resolve parent directory to locate 'app' module
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 os.environ["TESTING"] = "True"
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.database import Base, get_db
-import app.worker as worker
-from app import models
+from worker_app.database import Base, get_db
+import worker_app.worker as worker
+from worker_app import models
 
 # Create in-memory SQLite database for test runs
-engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+from sqlalchemy.pool import StaticPool
+engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Recreate tables for tests
@@ -115,6 +117,37 @@ def test_idempotency_deduplication():
     storage_dir = "./storage/models"
     files = [f for f in os.listdir(storage_dir) if f.startswith("idempotent-model")]
     assert len(files) == 1
+
+def test_idempotency_recovery_crashed_run():
+    event_id = str(uuid.uuid4())
+    job_id = str(uuid.uuid4())
+    model_id = "recovery-model"
+    
+    db = TestingSessionLocal()
+    # Pre-seed a RUNNING (crashed) event
+    crashed_event = models.ProcessedEvent(event_id=event_id, status="RUNNING")
+    db.add(crashed_event)
+    db.commit()
+    db.close()
+    
+    message = {
+        "event_id": event_id,
+        "job_id": job_id,
+        "model_id": model_id,
+        "dataset_path": DATASET_PATH,
+        "algorithm": "logistic_regression",
+        "requested_at": "2026-08-09T12:00:00Z"
+    }
+    
+    # Processing should recover it and run successfully rather than skipping!
+    assert worker.process_training_message(json.dumps(message)) is True
+    
+    # Check DB state
+    db = TestingSessionLocal()
+    event = db.query(models.ProcessedEvent).filter(models.ProcessedEvent.event_id == event_id).first()
+    assert event is not None
+    assert event.status == "COMPLETED"
+    db.close()
 
 def test_missing_dataset_permanent_failure():
     event_id = str(uuid.uuid4())

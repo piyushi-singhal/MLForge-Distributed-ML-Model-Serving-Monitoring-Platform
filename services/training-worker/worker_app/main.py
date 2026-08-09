@@ -57,7 +57,7 @@ def callback(ch, method, properties, body):
         ch.basic_ack(delivery_tag=method.delivery_tag)
         
     except TransientError as te:
-        # Fetch retry count and apply backoff
+        # Fetch retry count and apply non-blocking delay queue publish
         retry_count = 0
         if job_id:
             try:
@@ -72,11 +72,20 @@ def callback(ch, method, properties, body):
                 db.rollback()
 
         if retry_count <= 3:
-            backoff_delay = 2 ** retry_count
-            logger.warning(f"Requeuing job {job_id} after transient failure. Retry {retry_count}/3. Sleeping {backoff_delay}s...")
-            time.sleep(backoff_delay)
-            # Requeue message
-            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+            logger.warning(f"Requeuing job {job_id} after transient failure. Retry {retry_count}/3. Publishing to non-blocking TTL retry queue...")
+            # Publish to RabbitMQ delayed retry queue (with 5 seconds TTL)
+            try:
+                ch.basic_publish(
+                    exchange="",
+                    routing_key="training.jobs.retry",
+                    body=body,
+                    properties=properties
+                )
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+            except Exception as pe:
+                logger.error(f"Failed to publish to retry queue, falling back to basic requeue: {str(pe)}")
+                time.sleep(2)
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
         else:
             logger.error(f"Retries exhausted ({retry_count}/3) for job {job_id}. Rejecting to DLQ...")
             if job_id:
@@ -135,6 +144,13 @@ def main():
     channel.queue_declare(queue="training.jobs", durable=True, arguments={
         "x-dead-letter-exchange": "training.exchange.dead",
         "x-dead-letter-routing-key": "training.jobs.dead"
+    })
+    
+    # Declare non-blocking retry queue with TTL (5000ms delay) and DLX pointing back to main queue
+    channel.queue_declare(queue="training.jobs.retry", durable=True, arguments={
+        "x-message-ttl": 5000,
+        "x-dead-letter-exchange": "training.exchange",
+        "x-dead-letter-routing-key": "training.jobs.run"
     })
     
     channel.basic_qos(prefetch_count=1)

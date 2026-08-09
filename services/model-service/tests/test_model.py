@@ -1,18 +1,18 @@
-import os
-import sys
-# Resolve parent directory to locate 'app' module
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.database import Base, get_db
-from app.main import app
+from model_app.database import Base, get_db
+from model_app.main import app
 
 # Create in-memory SQLite database for test runs
-engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+from sqlalchemy.pool import StaticPool
+engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Recreate tables for tests
@@ -53,13 +53,13 @@ def test_model_creation():
         "id": "equipment-failure",
         "name": "Equipment Failure Model",
         "description": "Predicts component failures",
-        "created_by": 1
+        "created_by": "test-user-email@example.com"
     })
     assert response.status_code == 201
     data = response.json()
     assert data["id"] == "equipment-failure"
     assert data["name"] == "Equipment Failure Model"
-    assert data["created_by"] == 1
+    assert data["created_by"] == "test-user-email@example.com"
     assert "created_at" in data
 
     # 2. Duplicate model registration (should conflict)

@@ -1,5 +1,4 @@
 import os
-import sys
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -9,11 +8,9 @@ from sklearn.linear_model import LogisticRegression
 import numpy as np
 import json
 
-# Resolve parent directory to locate 'app' module
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 os.environ["TESTING"] = "True"
 
-# Mock Redis before importing app.main
+# Mock Redis before importing prediction_app.main
 class MockRedis:
     def __init__(self):
         self.store = {}
@@ -31,16 +28,21 @@ class MockRedis:
         self.sets += 1
         return True
 
-import app.main as main
+import prediction_app.main as main
 mock_redis = MockRedis()
 main.redis_client = mock_redis
 
-from app.database import Base, get_db
-from app.main import app
-from app import models
+from prediction_app.database import Base, get_db
+from prediction_app.main import app
+from prediction_app import models
 
 # Create in-memory SQLite database for test runs
-engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+from sqlalchemy.pool import StaticPool
+engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Recreate tables for tests

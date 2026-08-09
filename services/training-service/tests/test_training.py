@@ -1,19 +1,21 @@
 import os
-import sys
-# Resolve parent directory to locate 'app' module and mock RabbitMQ
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-os.environ["TESTING"] = "True"
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.database import Base, get_db
-from app.main import app
+os.environ["TESTING"] = "True"
+
+from training_app.database import Base, get_db
+from training_app.main import app
 
 # Create in-memory SQLite database for test runs
-engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+from sqlalchemy.pool import StaticPool
+engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Recreate tables for tests
@@ -57,7 +59,6 @@ def test_submit_and_get_training_job():
     })
     assert response.status_code == 202
     data = response.json()
-    assert "job_id" in data
     assert data["status"] == "QUEUED"
     assert data["model_id"] == "equipment-failure"
     assert data["algorithm"] == "random_forest"

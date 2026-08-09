@@ -48,15 +48,23 @@ def process_training_message(message_body: str):
             
         logger.info(f"Processing training job={job_id} event={event_id} model={model_id} algorithm={algorithm}")
         
-        # 2. Check Idempotency (Atomic event_id log insertion)
+        # 2. Check Idempotency and State Recovery
         try:
-            processed_event = models.ProcessedEvent(event_id=event_id, status="RUNNING")
-            db.add(processed_event)
-            db.commit()
-        except IntegrityError:
-            db.rollback()
-            logger.warning(f"Duplicate event {event_id} detected. Skipping processing.")
-            return True # Successfully handled (duplicate ignored)
+            existing_event = db.query(models.ProcessedEvent).filter(models.ProcessedEvent.event_id == event_id).first()
+            if existing_event:
+                if existing_event.status == "COMPLETED":
+                    logger.info(f"Event {event_id} already successfully COMPLETED. Skipping.")
+                    return True
+                else:
+                    # If status is RUNNING or FAILED, it means the worker crashed or failed. We recover.
+                    logger.warning(f"Event {event_id} found in state {existing_event.status}. Attempting recovery and re-running...")
+                    existing_event.status = "RUNNING"
+                    db.commit()
+                    processed_event = existing_event
+            else:
+                processed_event = models.ProcessedEvent(event_id=event_id, status="RUNNING")
+                db.add(processed_event)
+                db.commit()
         except OperationalError as e:
             db.rollback()
             raise TransientError(f"Database connection transient error during idempotency check: {str(e)}")

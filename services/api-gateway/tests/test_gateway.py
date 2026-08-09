@@ -1,14 +1,9 @@
-import os
-import sys
 import pytest
 from fastapi.testclient import TestClient
 import httpx
 from unittest.mock import AsyncMock, patch
 
-# Resolve parent directory to locate 'app' module
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from app.main import app
+from gateway_app.main import app
 
 client = TestClient(app)
 
