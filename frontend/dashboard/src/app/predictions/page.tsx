@@ -93,7 +93,7 @@ export default function PredictionsListPage() {
   }
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-8 space-y-6 w-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-6">
         <div>
@@ -124,45 +124,45 @@ export default function PredictionsListPage() {
       </div>
 
       {/* KPI Stats widgets */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 flex items-center gap-4">
-          <div className="rounded-lg bg-indigo-500/10 p-3 text-indigo-400 border border-indigo-500/20">
-            <Zap className="h-5 w-5" />
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 flex items-center gap-5 shadow-sm">
+          <div className="rounded-lg bg-indigo-500/10 p-3.5 text-indigo-400 border border-indigo-500/20">
+            <Zap className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">Total Predictions (recent)</span>
-            <span className="text-xl font-extrabold text-zinc-100 mt-0.5 block">{totalPreds}</span>
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">Total Predictions</span>
+            <span className="text-3xl font-extrabold text-zinc-100 mt-0.5 block">{totalPreds}</span>
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 flex items-center gap-4">
-          <div className="rounded-lg bg-violet-500/10 p-3 text-violet-400 border border-violet-500/20">
-            <Clock className="h-5 w-5" />
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 flex items-center gap-5 shadow-sm">
+          <div className="rounded-lg bg-violet-500/10 p-3.5 text-violet-400 border border-violet-500/20">
+            <Clock className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">Average Latency</span>
-            <span className="text-xl font-extrabold text-zinc-100 mt-0.5 block">{avgLatency}ms</span>
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">Average Latency</span>
+            <span className="text-3xl font-extrabold text-zinc-100 mt-0.5 block">{avgLatency}ms</span>
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 flex items-center gap-4">
-          <div className="rounded-lg bg-emerald-500/10 p-3 text-emerald-400 border border-emerald-500/20">
-            <CheckCircle2 className="h-5 w-5" />
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 flex items-center gap-5 shadow-sm">
+          <div className="rounded-lg bg-emerald-500/10 p-3.5 text-emerald-400 border border-emerald-500/20">
+            <CheckCircle2 className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">Success Rate</span>
-            <span className="text-xl font-extrabold text-emerald-400 mt-0.5 block">100.0%</span>
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">Success Rate</span>
+            <span className="text-3xl font-extrabold text-emerald-400 mt-0.5 block">100.0%</span>
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 flex items-center gap-4">
-          <div className="rounded-lg bg-amber-500/10 p-3 text-amber-400 border border-amber-500/20">
-            <Database className="h-5 w-5" />
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 flex items-center gap-5 shadow-sm">
+          <div className="rounded-lg bg-amber-500/10 p-3.5 text-amber-400 border border-amber-500/20">
+            <Database className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">Redis Cache Hit Rate</span>
-            <span className="text-xl font-extrabold text-amber-400 mt-0.5 block">
-              {cacheHitRate.toFixed(1)}% <span className="text-[10px] text-zinc-500 font-normal">({calculatedHits} hits)</span>
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">Redis Cache Hit Rate</span>
+            <span className="text-3xl font-extrabold text-amber-400 mt-0.5 block">
+              {cacheHitRate.toFixed(1)}% <span className="text-[11px] text-zinc-500 font-normal">({calculatedHits} hits)</span>
             </span>
           </div>
         </div>
@@ -177,7 +177,7 @@ export default function PredictionsListPage() {
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
           <table className="w-full text-sm text-left">
             <thead>
-              <tr className="border-b border-zinc-800 text-zinc-400 font-medium uppercase text-[10px] tracking-wider bg-zinc-950/20">
+              <tr className="border-b border-zinc-800 text-zinc-400 font-bold uppercase text-xs tracking-wider bg-zinc-950/20">
                 <th className="px-6 py-4">Request ID</th>
                 <th className="px-6 py-4">Model ID</th>
                 <th className="px-6 py-4">Version</th>

@@ -67,7 +67,7 @@ export default function TrainingJobsListPage() {
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
           <table className="w-full text-sm text-left">
             <thead>
-              <tr className="border-b border-zinc-800 text-zinc-400 font-medium uppercase text-[10px] tracking-wider bg-zinc-950/20">
+              <tr className="border-b border-zinc-800 text-zinc-400 font-bold uppercase text-xs tracking-wider bg-zinc-950/20">
                 <th className="px-6 py-4">Job ID</th>
                 <th className="px-6 py-4">Model ID</th>
                 <th className="px-6 py-4">Algorithm</th>

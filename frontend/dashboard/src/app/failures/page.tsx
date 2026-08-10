@@ -68,7 +68,7 @@ export default function FailuresPage() {
   });
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-8 space-y-8 w-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-6">
         <div>
@@ -99,7 +99,7 @@ export default function FailuresPage() {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 relative py-4">
-          <div className="absolute top-[28px] left-0 right-0 h-0.5 bg-zinc-850 -z-10" />
+          <div className="absolute top-[28px] left-0 right-0 h-0.5 bg-zinc-800 -z-10" />
 
           {/* Node 1 */}
           <div className="flex flex-col items-center text-center space-y-2">

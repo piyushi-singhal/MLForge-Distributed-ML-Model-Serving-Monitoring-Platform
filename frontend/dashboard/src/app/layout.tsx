@@ -21,10 +21,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
-      <body className="flex h-full bg-zinc-950 text-zinc-100 antialiased">
+      <body className="flex h-screen bg-zinc-950 text-zinc-100 antialiased overflow-hidden">
         <Sidebar />
-        {/* offset by sidebar width (w-60 = 15rem) */}
-        <main className="ml-60 flex-1 overflow-y-auto min-h-screen">
+        <main className="flex-1 overflow-y-auto h-full">
           {children}
         </main>
       </body>

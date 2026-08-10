@@ -231,7 +231,7 @@ export default function ServicesPage() {
                       <span className="font-bold text-zinc-300 block mb-1.5">Downstream Dependencies</span>
                       <div className="flex flex-wrap gap-1.5">
                         {svc.dependencies.map(dep => (
-                          <span key={dep} className="px-2 py-1 bg-zinc-850 rounded border border-zinc-800 text-[10px] font-mono text-zinc-300">
+                          <span key={dep} className="px-2 py-1 bg-zinc-800 rounded border border-zinc-800 text-[10px] font-mono text-zinc-300">
                             {dep}
                           </span>
                         ))}

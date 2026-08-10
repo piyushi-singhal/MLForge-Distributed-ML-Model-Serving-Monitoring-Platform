@@ -145,7 +145,7 @@ export default function OverviewPage() {
   const recentFailures = trainingJobs.filter(j => j.status === 'FAILED').length;
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-8 space-y-8 w-full">
       
       {/* Top Banner: Real-time update indicator */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-6">
@@ -184,30 +184,30 @@ export default function OverviewPage() {
       </div>
 
       {/* Summary KPI Widgets */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div className={clsx("rounded-xl border p-5 flex flex-col justify-between", overallColor)}>
-          <span className="text-xs font-semibold uppercase tracking-wider opacity-60">System Status</span>
-          <span className="mt-2 text-2xl font-bold tracking-tight">{overallStatus}</span>
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5 text-sm">
+        <div className={clsx("rounded-xl border p-6 flex flex-col justify-between shadow-md", overallColor)}>
+          <span className="text-[11px] font-bold uppercase tracking-wider opacity-70">System Status</span>
+          <span className="mt-2 text-3xl font-extrabold tracking-tight">{overallStatus}</span>
         </div>
         
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 flex flex-col justify-between">
-          <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Services Online</span>
-          <span className="mt-2 text-2xl font-bold text-zinc-100">{healthyCount} / {services.length}</span>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 flex flex-col justify-between shadow-md">
+          <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Services Online</span>
+          <span className="mt-2 text-3xl font-extrabold text-zinc-100">{healthyCount} / {services.length}</span>
         </div>
 
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 flex flex-col justify-between">
-          <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Active Training Jobs</span>
-          <span className="mt-2 text-2xl font-bold text-indigo-400">{activeJobs}</span>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 flex flex-col justify-between shadow-md">
+          <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Active Training Jobs</span>
+          <span className="mt-2 text-3xl font-extrabold text-indigo-400">{activeJobs}</span>
         </div>
 
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 flex flex-col justify-between">
-          <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Total Registered Models</span>
-          <span className="mt-2 text-2xl font-bold text-violet-400">{models.length}</span>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 flex flex-col justify-between shadow-md">
+          <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Total Registered Models</span>
+          <span className="mt-2 text-3xl font-extrabold text-violet-400">{models.length}</span>
         </div>
 
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 flex flex-col justify-between">
-          <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Total Prediction Requests</span>
-          <span className="mt-2 text-2xl font-bold text-amber-400">{predictions.length}</span>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 flex flex-col justify-between shadow-md">
+          <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Total Predictions</span>
+          <span className="mt-2 text-3xl font-extrabold text-amber-400">{predictions.length}</span>
         </div>
       </div>
 
@@ -312,10 +312,10 @@ export default function OverviewPage() {
           
           <div className="divide-y divide-zinc-800">
             {services.map(svc => (
-              <div key={svc.name} className="py-2.5 flex items-center justify-between">
+              <div key={svc.name} className="py-3.5 flex items-center justify-between">
                 <div>
-                  <div className="text-xs font-semibold text-zinc-200">{svc.name}</div>
-                  <div className="text-[10px] text-zinc-500 font-mono mt-0.5">{svc.endpoint}</div>
+                  <div className="text-sm font-bold text-zinc-200">{svc.name}</div>
+                  <div className="text-xs text-zinc-500 font-mono mt-0.5">{svc.endpoint}</div>
                 </div>
                 <StatusBadge status={svc.status} />
               </div>
@@ -339,13 +339,13 @@ export default function OverviewPage() {
             </div>
             
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
+              <table className="w-full text-sm text-left">
                 <thead>
-                  <tr className="border-b border-zinc-800 text-zinc-400 font-medium uppercase text-[10px] tracking-wider bg-zinc-950/20">
-                    <th className="px-6 py-3">Job ID</th>
-                    <th className="px-6 py-3">Model</th>
-                    <th className="px-6 py-3">Algorithm</th>
-                    <th className="px-6 py-3">Status</th>
+                  <tr className="border-b border-zinc-800 text-zinc-400 font-bold uppercase text-[11px] tracking-wider bg-zinc-950/20">
+                    <th className="px-6 py-4">Job ID</th>
+                    <th className="px-6 py-4">Model</th>
+                    <th className="px-6 py-4">Algorithm</th>
+                    <th className="px-6 py-4">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800">
@@ -394,13 +394,13 @@ export default function OverviewPage() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
+              <table className="w-full text-sm text-left">
                 <thead>
-                  <tr className="border-b border-zinc-800 text-zinc-400 font-medium uppercase text-[10px] tracking-wider bg-zinc-950/20">
-                    <th className="px-6 py-3">Request ID</th>
-                    <th className="px-6 py-3">Model</th>
-                    <th className="px-6 py-3">Confidence</th>
-                    <th className="px-6 py-3">Latency</th>
+                  <tr className="border-b border-zinc-800 text-zinc-400 font-bold uppercase text-[11px] tracking-wider bg-zinc-950/20">
+                    <th className="px-6 py-4">Request ID</th>
+                    <th className="px-6 py-4">Model</th>
+                    <th className="px-6 py-4">Confidence</th>
+                    <th className="px-6 py-4">Latency</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800">

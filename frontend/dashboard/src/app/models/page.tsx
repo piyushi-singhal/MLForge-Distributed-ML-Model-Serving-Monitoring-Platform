@@ -52,7 +52,7 @@ export default function ModelsListPage() {
   }, []);
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-8 space-y-6 w-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-6">
         <div>
@@ -84,7 +84,7 @@ export default function ModelsListPage() {
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
           <table className="w-full text-sm text-left">
             <thead>
-              <tr className="border-b border-zinc-800 text-zinc-400 font-medium uppercase text-[10px] tracking-wider bg-zinc-950/20">
+              <tr className="border-b border-zinc-800 text-zinc-400 font-bold uppercase text-xs tracking-wider bg-zinc-950/20">
                 <th className="px-6 py-4">Model ID / Name</th>
                 <th className="px-6 py-4">Active Version</th>
                 <th className="px-6 py-4">Algorithm</th>
