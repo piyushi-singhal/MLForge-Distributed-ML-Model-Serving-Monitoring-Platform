@@ -15,15 +15,16 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "MLForge Operational Dashboard",
-  description: "Real‑time observability for MLForge services",
+  description: "Real‑time observability and control center for MLForge services",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full bg-gray-900 text-gray-100 antialiased`}> 
-      <body className="flex h-full">
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
+      <body className="flex h-full bg-zinc-950 text-zinc-100 antialiased">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto p-6">
+        {/* offset by sidebar width (w-60 = 15rem) */}
+        <main className="ml-60 flex-1 overflow-y-auto min-h-screen">
           {children}
         </main>
       </body>

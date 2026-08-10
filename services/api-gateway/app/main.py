@@ -156,6 +156,134 @@ async def reverse_proxy(target_url: str, request: Request) -> Response:
                 headers={"X-Request-ID": request_id}
             )
 
+import socket
+import os
+
+def check_tcp_connection(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=1.0):
+            return True
+    except Exception:
+        return False
+
+@app.get("/api/postgres/health")
+async def postgres_health():
+    host = os.environ.get("POSTGRES_HOST", "postgres")
+    if check_tcp_connection(host, 5432):
+        return {"status": "healthy"}
+    return JSONResponse(status_code=503, content={"status": "unhealthy", "detail": "PostgreSQL port 5432 unreachable"})
+
+@app.get("/api/redis/health")
+async def redis_health():
+    host = os.environ.get("REDIS_HOST", "redis")
+    if check_tcp_connection(host, 6379):
+        return {"status": "healthy"}
+    return JSONResponse(status_code=503, content={"status": "unhealthy", "detail": "Redis port 6379 unreachable"})
+
+@app.get("/api/rabbitmq/health")
+async def rabbitmq_health():
+    host = os.environ.get("RABBITMQ_HOST", "rabbitmq")
+    if check_tcp_connection(host, 5672):
+        return {"status": "healthy"}
+    return JSONResponse(status_code=503, content={"status": "unhealthy", "detail": "RabbitMQ port 5672 unreachable"})
+
+@app.get("/api/worker/health")
+async def worker_health(request: Request):
+    try:
+        resp = await reverse_proxy("http://training-worker:8000/", request)
+        if resp.status_code == 200:
+            return {"status": "healthy"}
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "detail": f"Downstream returned status {resp.status_code}"})
+    except Exception as e:
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "detail": str(e)})
+
+@app.get("/api/prometheus/health")
+async def prometheus_health(request: Request):
+    try:
+        resp = await reverse_proxy("http://prometheus:9090/-/healthy", request)
+        if resp.status_code == 200:
+            return {"status": "healthy"}
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "detail": f"Downstream returned status {resp.status_code}"})
+    except Exception as e:
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "detail": str(e)})
+
+@app.get("/api/grafana/health")
+async def grafana_health(request: Request):
+    try:
+        resp = await reverse_proxy("http://grafana:3000/api/health", request)
+        if resp.status_code == 200:
+            return {"status": "healthy"}
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "detail": f"Downstream returned status {resp.status_code}"})
+    except Exception as e:
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "detail": str(e)})
+
+@app.get("/api/auth/health")
+async def auth_health(request: Request):
+    return await reverse_proxy(f"{settings.AUTH_SERVICE_URL}/health", request)
+
+@app.get("/api/auth/ready")
+async def auth_ready(request: Request):
+    return await reverse_proxy(f"{settings.AUTH_SERVICE_URL}/ready", request)
+
+@app.get("/api/models/health")
+async def models_health(request: Request):
+    return await reverse_proxy(f"{settings.MODEL_SERVICE_URL}/health", request)
+
+@app.get("/api/models/ready")
+async def models_ready(request: Request):
+    return await reverse_proxy(f"{settings.MODEL_SERVICE_URL}/ready", request)
+
+@app.get("/api/training/health")
+async def training_health(request: Request):
+    return await reverse_proxy(f"{settings.TRAINING_SERVICE_URL}/health", request)
+
+@app.get("/api/training/ready")
+async def training_ready(request: Request):
+    return await reverse_proxy(f"{settings.TRAINING_SERVICE_URL}/ready", request)
+
+@app.get("/api/predictions/health")
+async def predictions_health(request: Request):
+    return await reverse_proxy(f"{settings.PREDICTION_SERVICE_URL}/health", request)
+
+@app.get("/api/predictions/ready")
+async def predictions_ready(request: Request):
+    return await reverse_proxy(f"{settings.PREDICTION_SERVICE_URL}/ready", request)
+
+@app.get("/api/rabbitmq/queues")
+async def rabbitmq_queues(request: Request):
+    import httpx
+    auth = httpx.BasicAuth(os.environ.get("RABBITMQ_USER", "guest"), os.environ.get("RABBITMQ_PASSWORD", "guest"))
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get("http://rabbitmq:15672/api/queues", auth=auth, timeout=2.0)
+            if resp.status_code == 200:
+                return resp.json()
+            return JSONResponse(status_code=resp.status_code, content={"detail": "RabbitMQ API returned error"})
+        except Exception as e:
+            return JSONResponse(status_code=503, content={"detail": str(e)})
+
+@app.get("/api/prometheus/query")
+async def prometheus_query(request: Request):
+    import httpx
+    query_params = request.query_params
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get("http://prometheus:9090/api/v1/query", params=query_params, timeout=5.0)
+            return Response(content=resp.content, status_code=resp.status_code, media_type="application/json")
+        except Exception as e:
+            return JSONResponse(status_code=503, content={"detail": str(e)})
+
+@app.get("/api/prometheus/query_range")
+async def prometheus_query_range(request: Request):
+    import httpx
+    query_params = request.query_params
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get("http://prometheus:9090/api/v1/query_range", params=query_params, timeout=5.0)
+            return Response(content=resp.content, status_code=resp.status_code, media_type="application/json")
+        except Exception as e:
+            return JSONResponse(status_code=503, content={"detail": str(e)})
+
 # Wildcard route mappings
 @app.api_route("/api/auth/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
 async def route_auth(path: str, request: Request):
